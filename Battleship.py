@@ -17,26 +17,48 @@ class Board():
         self.left = None
         self.top = None
         self.borderWidth = 1
+        self.cellWidth = self.width // self.cols
+        self.cellHeight = self.height //self.rows
         self.board = [[(0,0)] * self.cols for i in range(self.rows)]
     
-    def drawBoard(self, app):
+    def drawBoard(self):
         for row in range(self.rows):
             for col in range(self.cols):
-                cellWidth = self.width // self.cols
-                cellHeight = self.height //self.rows
-                cellLeft = self.left + cellWidth * col
-                cellTop = self.top + cellHeight * row
-                drawRect(cellLeft, cellTop, cellWidth, cellHeight, fill = None,
-                         border = 'blue', borderWidth = self.borderWidth)
+                self.drawCell(row, col)
+        self.drawBorder()
+        self.drawCoordinateLabels()
+    
+    def drawCoordinateLabels(self):
+        for row in range(self.rows):
+            cellTop = self.top + self.cellHeight * row
+            drawLabel(chr(ord('A') + row), self.left - 20, 
+                      cellTop + self.cellHeight // 2, fill = 'blue')
+        for col in range(self.cols):
+            cellLeft = self.left + self.cellWidth * col
+            drawLabel(col + 1, cellLeft + self.cellWidth // 2, self.top - 20,
+                      fill = 'blue')
+    
+    def drawBorder(self):
+        drawRect(self.left, self.top, self.width, self.height, fill = None, 
+                 border = 'blue', borderWidth = self.borderWidth * 2)
+    
+    def drawCell(self, row, col):
+        cellLeft = self.left + self.cellWidth * col
+        cellTop = self.top + self.cellHeight * row
+        drawRect(cellLeft, cellTop, self.cellWidth, self.cellHeight, 
+                 fill = None, border = 'blue', borderWidth = self.borderWidth)
 
 ################################################################################
-#################################    Grid    ###################################
+############################    User Interaction    ############################
 ################################################################################
 
-def drawBoard(app):
+def mousePressed(app, mouseX, mouseY):
     pass
 
-def drawCell(app):
+def mouseDrag(app, mouseX, mouseY):
+    pass
+
+def mouseReleased(app, mouseX, mouseY):
     pass
 
 ################################################################################
@@ -44,8 +66,8 @@ def drawCell(app):
 ################################################################################
 
 def onAppStart(app):
-    app.width = 1000
-    app.height = 600
+    app.width = 1200
+    app.height = 700
     app.player1Board = Board(400, 400, 10, 10)
     app.player2Board = Board(400, 400, 10, 10)
     app.player1Board.left = app.width // 4 - app.player1Board.width // 2
@@ -57,8 +79,8 @@ def startGame(app):
     pass
 
 def redrawAll(app):
-    app.player1Board.drawBoard(app)
-    app.player2Board.drawBoard(app)
+    app.player1Board.drawBoard()
+    app.player2Board.drawBoard()
 
 def main():
     runApp()
