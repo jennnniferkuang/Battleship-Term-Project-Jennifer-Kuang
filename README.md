@@ -19,4 +19,5 @@
 
 **To Do:**
 - How to change app.width/height to screen width/height or let user choose
-- How to upload and use images
+- snap to closest cell
+- place ship in cells

@@ -1,5 +1,6 @@
 from cmu_graphics import *
 from PIL import Image
+import random
 
 ################################################################################
 ################################    Board    ###################################
@@ -11,14 +12,13 @@ class Board():
         self.height = height
         self.rows = rows
         self.cols = cols
-        self.left = None
-        self.top = None
+        self.left = None # override after initialization
+        self.top = None # override after initialization
         self.borderWidth = 1
         self.cellWidth = self.width // self.cols
         self.cellHeight = self.height //self.rows
-        self.board = [[(0, 0)] * self.cols for i in range(self.rows)]
-        # In which the tuple represents (holds ship, guessed) and 0 represents
-        # false and 1 represents true
+        self.board = [[(False, False)] * self.cols for i in range(self.rows)]
+        # In which the tuple represents (holds ship, guessed)
     
     def drawBoard(self):
         for row in range(self.rows):
@@ -53,45 +53,62 @@ class Board():
 ###########################    Ships and Planes    #############################
 ################################################################################
 
+# Image code referenced from kirbleBirdStarter.py (lines 15, 21, 23, 40-41)
+# from the Piazza note https://piazza.com/class/li3k33dc9yl37f/post/424
+
 class Ship():
-    def __init__(self, image, width, cellWidth, cellHeight):
+    def __init__(self, image, height, board):
+        # grid info
+        self.gridWidth = 1 # default
+        self.gridHeight = height
+        self.gridTopRow = None # override after initialization
+        self.gridLeftCol = None # override after initialization
+        self.gridShape = [[1] * self.gridWidth] * self.gridHeight
+        # canvas info
+        self.pixelWidth = self.gridWidth * board.cellWidth
+        self.pixelHeight = self.gridHeight * board.cellHeight
+        self.pixelLeftX = board.left # temp
+        self.pixelTopY = board.top
+        # image info
         self.image = Image.open(image)
-        self.width = width
-        self.height = 1
-        self.imageLength = self.width * cellHeight
-        self.imageWidth = self.height * cellWidth
-        self.gridShape = [[1] * self.width] * self.height
-        self.leftCol = None
-        self.topRow = None
+        self.image = self.image.resize((self.pixelWidth, self.pixelHeight))
     
     def drawShip(self):
-        self.image = self.image.resize((50, 200)) # temp literal
-        self.image = CMUImage(self.image)
-        drawImage(self.image, 200, 400) # temp literal
-    
-    def rotateShip(self):
-        self.gridShape = [[1] * self.height] * self.width
-        self.imageLength, self.imageWidth = self.imageWidth, self.imageLength
-        self.width, self.height = self.height, self.width
+        currShipImage = CMUImage(self.image)
+        drawImage(currShipImage, self.pixelLeftX, self.pixelTopY)
 
-class Plane(Ship):
-    def __init__(self, image, width, cellWidth, cellHeight):
-        super().__init__(image, width, cellWidth, cellHeight)
-        self.height = 3
-        
+    def rotateShip(self, board):
+        # rotate method referenced from official Pillow documentation:
+        # https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.rotate 
+        self.image = self.image.rotate(90)
+        self.pixelWidth, self.pixelHeight = self.pixelHeight, self.pixelWidth
+        self.pixelLeftX = board.left
+        self.pixelTopY = board.top - (self.pixelHeight + 50)
+        self.gridWidth, self.gridHeight = self.gridHeight, self.gridWidth
+        self.gridShape = [[1] * self.Width] * self.gridHeight
 
 ################################################################################
 ############################    User Interaction    ############################
 ################################################################################
 
+def inRect(pX, pY, x, y, width, height):
+    if x <= pX <= x + width and y <= pY <= y + height:
+        return True
+    return False
+
 def mousePressed(app, mouseX, mouseY):
     pass
 
-def mouseDrag(app, mouseX, mouseY):
-    pass
+def onMouseDrag(app, mouseX, mouseY):
+    for ship in app.blueShips:
+        if inRect(mouseX, mouseY, ship.pixelLeftX, ship.pixelTopY, ship.pixelWidth,
+                  ship.pixelHeight) and (app.heldShip == None or ship == app.heldShip):
+            app.heldShip = ship
+            app.heldShip.pixelLeftX = mouseX - app.heldShip.pixelWidth // 2
+            app.heldShip.pixelTopY = mouseY - app.heldShip.pixelHeight // 2
 
-def mouseReleased(app, mouseX, mouseY):
-    pass
+def onMouseRelease(app, mouseX, mouseY):
+    app.heldShip = None
 
 ################################################################################
 ########################    Top (or bottom I guess)    #########################
@@ -100,6 +117,7 @@ def mouseReleased(app, mouseX, mouseY):
 def onAppStart(app):
     app.width = 1200
     app.height = 700
+    app.heldShip = None
     initiateBoard(app)
     initiatePlayerShips(app)
     initiateComputerShips(app)
@@ -114,21 +132,28 @@ def initiateBoard(app):
 
 def initiatePlayerShips(app):
     app.blueShips = []
-    app.blueShips.append(Ship('assets/A_destroyer_2.png', 2, 40, 40)) # temp
-    app.blueShips.append(Ship('assets/A_cruiser_3.png', 3, 40, 40))
-    app.blueShips.append(Ship('assets/A_carrier_4.png', 4, 40, 40))
-    app.blueShips.append(Ship('assets/A_battleship_5.png', 5, 40, 40))
+    app.blueShips.append(Ship('assets/A_destroyer_2.png', 2, app.player1Board)) # temp
+    app.blueShips.append(Ship('assets/A_cruiser_3.png', 3, app.player1Board))
+    app.blueShips.append(Ship('assets/A_carrier_4.png', 4, app.player1Board))
+    app.blueShips.append(Ship('assets/A_battleship_5.png', 5, app.player1Board))
+    for ship in range(len(app.blueShips)):
+        app.blueShips[ship].pixelLeftX += (ship * app.player1Board.cellWidth)
 
 def initiateComputerShips(app):
     app.redShips = []
-    app.redShips.append(Ship('assets/B_destroyer_2.png', 2, 40, 40)) # temp
-    app.redShips.append(Ship('assets/B_cruiser_3.png', 3, 40, 40))
-    app.redShips.append(Ship('assets/B_carrier_4.png', 4, 40, 40))
-    app.redShips.append(Ship('assets/B_battleship_5.png', 5, 40, 40))
+    app.redShips.append(Ship('assets/B_destroyer_2.png', 2, app.player2Board)) # temp
+    app.redShips.append(Ship('assets/B_cruiser_3.png', 3, app.player2Board))
+    app.redShips.append(Ship('assets/B_carrier_4.png', 4, app.player2Board))
+    app.redShips.append(Ship('assets/B_battleship_5.png', 5, app.player2Board))
+
+def drawPlayerShips(app): 
+    for ship in range(len(app.blueShips)):
+        app.blueShips[ship].drawShip()
 
 def redrawAll(app):
     app.player1Board.drawBoard()
     app.player2Board.drawBoard()
+    drawPlayerShips(app)
 
 def main():
     runApp()

@@ -1,0 +1,28 @@
+class Ship():
+    def __init__(self, image, width, cellWidth, cellHeight):
+        self.image = Image.open(image)
+        self.width = width
+        self.height = 1
+        self.imageWidth = self.width * cellHeight
+        self.imageHeight = self.height * cellWidth
+        self.gridShape = [[1] * self.width] * self.height
+        self.leftCol = None
+        self.topRow = None
+    
+    def drawShip(self, topY, leftX):
+        self.image = self.image.resize((self.imageHeight, self.imageWidth)) # temp literal
+        self.image = CMUImage(self.image)
+        drawImage(self.image, leftX, topY)
+    
+    def rotateShip(self):
+        self.gridShape = [[1] * self.height] * self.width
+        self.imageHeight, self.imageWidth = self.imageWidth, self.imageHeight
+        self.width, self.height = self.height, self.width
+        # rotate function referenced from official Pillow documentation:
+        # https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.rotate 
+        self.image = self.image.rotate(90)
+
+class Plane(Ship):
+    def __init__(self, image, width, cellWidth, cellHeight):
+        super().__init__(image, width, cellWidth, cellHeight)
+        self.height = 3
