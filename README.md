@@ -22,3 +22,7 @@
 - check to make sure computer's selected ship locations do not overlap. (Change to row, col generation instead?)
 - implement rotate ship
 - draw states of ships/guess
+
+**Possible AI Ideas:**
+- Impossible areas (guess using diamond shapes)
+- 

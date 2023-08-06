@@ -49,7 +49,7 @@ class Board():
         drawRect(cellLeft, cellTop, self.cellWidth, self.cellHeight, 
                  fill = None, border = 'blue', borderWidth = self.borderWidth)
     
-    def drawAimScope(self, pX, pY):
+    def drawCrosshair(self, pX, pY):
         # given point x and point y, find row and column and draw a circle in
         # the respective cell.
         row, col = getCell(pX, pY, self)
@@ -57,6 +57,10 @@ class Board():
         pixelMidY = (self.top + self.cellHeight * row) + self.cellHeight // 2
         drawCircle(pixelMidX, pixelMidY, self.cellWidth // 3, fill = None,
                    borderWidth = 3, border = 'blue')
+        drawLine(pixelMidX, pixelMidY - self.cellHeight, pixelMidX, 
+                 pixelMidY + self.cellHeight, fill = 'blue', lineWidth = 3)
+        drawLine(pixelMidX - self.cellWidth, pixelMidY, pixelMidX + self.cellWidth, 
+                 pixelMidY, fill = 'blue', lineWidth = 3)
 
 ################################################################################
 ###########################    Ships and Planes    #############################
@@ -210,6 +214,7 @@ def onAppStart(app):
     app.playerTurn = True
     app.mousePosX = 0
     app.mousePosY = 0
+    app.message = 'BATTLESHIP'
     initiateBoard(app)
     initiatePlayerShips(app)
     initiateComputerShips(app)
@@ -270,22 +275,29 @@ def drawPlayerShips(app):
     for ship in range(len(app.blueShips)):
         app.blueShips[ship].drawShip() # temp
 
+def drawMessageBox(app):
+    drawRect(app.width // 4, 25, app.width // 2, 75, fill = None, border = 'blue') # temp 25 and 75
+    messageBoxMiddleY = 25 + (75 // 2)
+    drawLabel(app.message, app.width // 2, messageBoxMiddleY, size = 25, fill = 'blue')
+
 def redrawAll(app):
     # draw player and computer boards
     app.player1Board.drawBoard()
     app.player2Board.drawBoard()
     # draw player ships (computer boards hidden for now)
     drawPlayerShips(app)
+    # draw message box
+    drawMessageBox(app)
     # if game has not started yet, draw confirm placement button
     if not app.gameStarted:
         app.confirmButton.drawButton()
     # if the game is started and the mouse is within the computer's board,
-    # draw the aiming scope to select a cell to fire at.
+    # draw the crosshair to select a cell to fire at.
     rightBound = app.player2Board.left + app.player2Board.width
     bottomBound = app.player2Board.top + app.player2Board.height
-    if (app.gameStarted and app.player2Board.left <= app.mousePosX <= rightBound 
-        and app.player2Board.top <= app.mousePosY <= bottomBound):
-        app.player2Board.drawAimScope(app.mousePosX, app.mousePosY)
+    if (app.playerTurn and app.gameStarted and app.player2Board.left <= app.mousePosX 
+        <= rightBound and app.player2Board.top <= app.mousePosY <= bottomBound):
+        app.player2Board.drawCrosshair(app.mousePosX, app.mousePosY)
 
 def main():
     runApp()
