@@ -17,13 +17,15 @@ class Board():
         self.borderWidth = 1
         self.cellWidth = self.width // self.cols
         self.cellHeight = self.height //self.rows
-        self.board = [[(0, 0)] * self.cols for i in range(self.rows)]
-        # In which the tuple represents (guessed, holds ship)
+        self.board = [[[0, 0]] * self.cols for i in range(self.rows)]
+        # In which the 3rd list represents [guessed, holds ship]
     
     def drawBoard(self):
         for row in range(self.rows):
             for col in range(self.cols):
                 self.drawCell(row, col)
+                if self.board[row][col][0] == 1:
+                    self.drawStatus(row, col, self.board[row][col][1])
         self.drawBorder()
         self.drawCoordinateLabels()
     
@@ -49,10 +51,16 @@ class Board():
         drawRect(cellLeft, cellTop, self.cellWidth, self.cellHeight, 
                  fill = None, border = 'blue', borderWidth = self.borderWidth)
     
+    def drawStatus(self, row, col, status):
+        pX = self.left + self.cellWidth * row + self.cellWidth // 2
+        pY = self.top + self.cellHeight * col + self.cellHeight // 2
+        if status == 0:
+            drawCircle(pX, pY, self.cellWidth // 4, fill = 'black') # temp colour
+    
     def drawCrosshair(self, pX, pY):
         # given point x and point y, find row and column and draw a circle in
         # the respective cell.
-        row, col = getCell(pX, pY, self)
+        row, col = pixelToRowCol(pX, pY, self)
         pixelMidX = (self.left + self.cellWidth * col) + self.cellWidth // 2
         pixelMidY = (self.top + self.cellHeight * row) + self.cellHeight // 2
         drawCircle(pixelMidX, pixelMidY, self.cellWidth // 3, fill = None,
@@ -76,7 +84,7 @@ class Ship():
         self.gridHeight = height
         self.gridTopRow = None # override after initialization
         self.gridLeftCol = None # override after initialization
-        self.gridShape = [[(0, 1)] * self.gridWidth] * self.gridHeight
+        self.gridShape = [[[0, 1]] * self.gridWidth] * self.gridHeight
         # canvas info
         self.pixelWidth = self.gridWidth * board.cellWidth
         self.pixelHeight = self.gridHeight * board.cellHeight
@@ -98,8 +106,17 @@ class Ship():
         self.pixelLeftX = board.left
         self.pixelTopY = board.top - (self.pixelHeight + 50)
         self.gridWidth, self.gridHeight = self.gridHeight, self.gridWidth
-        self.gridShape = [[1] * self.gridWidth] * self.gridHeight
+        self.gridShape = [[[0, 1]] * self.gridWidth] * self.gridHeight
         self.image = self.image.resize((self.pixelWidth, self.pixelHeight))
+    
+    def placeShip(self, board):
+        # get the closest row and col to the top left of the ship. Then, use the
+        # ship's grid shape to increment row and col of the initial starting row
+        # and col of board and set it to be the same as the ship's cell value
+        firstRow, firstCol = pixelToRowCol(self.pixelLeftX, self.pixelTopY, board)
+        for row in range(len(self.gridShape)):
+            for col in range(len(self.gridShape[row])):
+                board.board[firstRow + row][firstCol + col] = self.gridShape[row][col]
 
 ################################################################################
 ###############################    Buttons    ##################################
@@ -125,28 +142,36 @@ class Button():
 ######################    Ship and Board Interaction    ########################
 ################################################################################
 
-def placeShips(ships, board):
-    for ship in ships:
-        # get the closest row and col to the top left of the ship. Then, use the
-        # ship's grid shape to increment row and col of the initial starting row
-        # and col of board and set it to be the same as the ship's cell value
-        firstRow, firstCol = getClosestRowCol(ship.pixelLeftX, ship.pixelTopY, board)
-        for row in range(len(ship.gridShape)):
-            for col in range(len(ship.gridShape[row])):
-                board.board[firstRow + row][firstCol + col] = ship.gridShape[row][col]
-
-# gets closest row, col given a point. Used to accomodate for the possibility
-# that ship images may be slightly outside of the intended cells
-def getClosestRowCol(pX, pY, board):
-    closestCol = rounded((pX - board.left) / board.cellWidth)
-    closestRow = rounded((pY - board.top) / board.cellHeight)
-    return closestRow, closestCol
-
-# gets the exact cell the point is within
-def getCell(pX, pY, board):
+def pixelToRowCol(pX, pY, board, getClosest = False):
+    # get closest to accomodate for ships being placed slightly outside the 
+    # intended cell
+    if getClosest == True:
+        closestCol = rounded((pX - board.left) / board.cellWidth)
+        closestRow = rounded((pY - board.top) / board.cellHeight)
+        return closestRow, closestCol
+    # if no need for accomodation, strictly get the cell the point is within
     row = (pY - board.top) // board.cellHeight
     col = (pX - board.left) // board.cellWidth
     return row, col
+
+################################################################################
+###########################    Computer Player    ##############################
+################################################################################
+
+def computerPlaceShips(app):
+    # for each ship, find their grid shape, then within, loop through the grid
+    # if not overlapping with any other ships, place on grid
+    # maybe change the ship's grid shape to hold its row, col instead of just 1
+    # then use 'in' to minimize a loop
+    pass
+
+def computerGuess(app):
+    guessRow = random.randint(0, 9) # temp
+    guessCol = random.randint(0, 9)
+    while app.player1Board.board[guessRow][guessCol][0] == 1:
+        guessRow = random.randint(0, 9) # temp
+        guessCol = random.randint(0, 9)
+    app.player1Board.board[guessRow][guessCol][0] = 1
 
 ################################################################################
 ###########################    Mouse Interaction    ############################
@@ -164,22 +189,16 @@ def onMousePress(app, mouseX, mouseY):
     if inRect(mouseX, mouseY, app.confirmButton.midX - app.confirmButton.width // 2,
               app.confirmButton.midY - app.confirmButton.height // 2, 
               app.confirmButton.width, app.confirmButton.height):
-        placeShips(app.blueShips, app.player1Board)
-        placeShips(app.redShips, app.player2Board)
+        for ship in app.blueShips:
+            ship.placeShip(app.player1Board)
         app.gameStarted = True
     # player guesses cell
     elif app.gameStarted and app.playerTurn:
-        hitRow, hitCol = getCell(mouseX, mouseY, app.player2Board)
-        # if cell has not been guessed and contains ship
-        if app.player2Board.board[hitRow][hitCol] == (0, 1):
-            app.player2Board.board[hitRow][hitCol] = (1, 1)
-            # update computer ship state
-        # if cell has not been guessed and does not contain ship
-        elif app.player2Board.board[hitRow][hitCol] == (0, 0):
-            app.player2Board.board[hitRow][hitCol] = (1, 0)
-        # if cell has already been guessed, just ignore
+        hitRow, hitCol = pixelToRowCol(mouseX, mouseY, app.player2Board)
+        # set first value of status list to 1
+        app.player2Board.board[hitRow][hitCol][0] = 1
         app.playerTurn = False
-        print(app.player2Board.board)
+        computerGuess(app) # temp, make longer wait time
 
 def onMouseDrag(app, mouseX, mouseY):
     if not app.gameStarted:
@@ -196,6 +215,7 @@ def onMouseDrag(app, mouseX, mouseY):
 
 def onMouseRelease(app, mouseX, mouseY):
     # release held ships, can pick up new ship after release
+    app.prevHeldShip = app.heldShip
     app.heldShip = None
 
 def onMouseMove(app, mouseX, mouseY):
@@ -210,6 +230,7 @@ def onAppStart(app):
     app.width = 1200
     app.height = 700
     app.heldShip = None
+    app.prevHeldShip = None
     app.gameStarted = False
     app.playerTurn = True
     app.mousePosX = 0
@@ -233,7 +254,7 @@ def initiateBoard(app):
 def initiatePlayerShips(app):
     app.blueShips = []
     # the following images are illustrated by my friend @gawain_draws on
-    # Instagram for a commission. All drawings are paid for and I have explicit 
+    # Instagram for my commission. All drawings are paid for and I have explicit 
     # permission from him to use these illustrations for this project.
     app.blueShips.append(Ship('assets/A_destroyer_2.png', 2, app.player1Board)) # temp
     app.blueShips.append(Ship('assets/A_cruiser_3.png', 3, app.player1Board))
@@ -246,18 +267,12 @@ def initiatePlayerShips(app):
 def initiateComputerShips(app):
     app.redShips = []
     # the following images are illustrated by my friend @gawain_draws on
-    # Instagram for a commission. All drawings are paid for and I have explicit 
+    # Instagram for my commission. All drawings are paid for and I have explicit 
     # permission from him to use these illustrations for this project.
     app.redShips.append(Ship('assets/B_destroyer_2.png', 2, app.player2Board)) # temp
     app.redShips.append(Ship('assets/B_cruiser_3.png', 3, app.player2Board))
     app.redShips.append(Ship('assets/B_carrier_4.png', 4, app.player2Board))
     app.redShips.append(Ship('assets/B_battleship_5.png', 5, app.player2Board))
-    # randomly generate a pixel location for each ship (temp)
-    for ship in app.redShips:
-        maxX = app.player2Board.left + app.player2Board.width - ship.pixelWidth
-        maxY = app.player2Board.top + app.player2Board.height - ship.pixelHeight
-        ship.leftX = random.randint(app.player2Board.left, maxX)
-        ship.topY = random.randint(app.player2Board.top, maxY)
 
 def initiateButtons(app):
     # 'confirm placement' button
@@ -271,33 +286,41 @@ def initiateButtons(app):
 ################################################################################
 
 # using the list of player ships, draw them on the board
-def drawPlayerShips(app): 
-    for ship in range(len(app.blueShips)):
-        app.blueShips[ship].drawShip() # temp
+def drawPlayerShips(ships): 
+    for ship in range(len(ships)):
+        ships[ship].drawShip() # temp
 
+# draw message/status box in top middle of board
 def drawMessageBox(app):
     drawRect(app.width // 4, 25, app.width // 2, 75, fill = None, border = 'blue') # temp 25 and 75
     messageBoxMiddleY = 25 + (75 // 2)
     drawLabel(app.message, app.width // 2, messageBoxMiddleY, size = 25, fill = 'blue')
 
-def redrawAll(app):
-    # draw player and computer boards
-    app.player1Board.drawBoard()
-    app.player2Board.drawBoard()
-    # draw player ships (computer boards hidden for now)
-    drawPlayerShips(app)
-    # draw message box
-    drawMessageBox(app)
-    # if game has not started yet, draw confirm placement button
-    if not app.gameStarted:
-        app.confirmButton.drawButton()
-    # if the game is started and the mouse is within the computer's board,
-    # draw the crosshair to select a cell to fire at.
+def drawCrosshair(app):
+    # the mouse is within the computer's board, draw the crosshair to select a 
+    # cell to fire at.
     rightBound = app.player2Board.left + app.player2Board.width
     bottomBound = app.player2Board.top + app.player2Board.height
-    if (app.playerTurn and app.gameStarted and app.player2Board.left <= app.mousePosX 
-        <= rightBound and app.player2Board.top <= app.mousePosY <= bottomBound):
+    if (app.player2Board.left <= app.mousePosX <= rightBound and 
+        app.player2Board.top <= app.mousePosY <= bottomBound):
         app.player2Board.drawCrosshair(app.mousePosX, app.mousePosY)
+
+################################################################################
+######################   Tippity Toppest Top Level   ###########################
+################################################################################
+
+def redrawAll(app):
+    app.player1Board.drawBoard()
+    app.player2Board.drawBoard()
+    drawPlayerShips(app.blueShips)
+    drawPlayerShips(app.redShips) # temp
+    drawMessageBox(app)
+    # if game has not started yet
+    if not app.gameStarted:
+        app.confirmButton.drawButton()
+    # if the game is started
+    if app.playerTurn and app.gameStarted:
+        drawCrosshair(app)
 
 def main():
     runApp()

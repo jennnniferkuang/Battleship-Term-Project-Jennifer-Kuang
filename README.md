@@ -22,7 +22,29 @@
 - check to make sure computer's selected ship locations do not overlap. (Change to row, col generation instead?)
 - implement rotate ship
 - draw states of ships/guess
+- something buggy about guess dot
 
-**Possible AI Ideas:**
-- Impossible areas (guess using diamond shapes)
-- 
+**Dev Only:**
+# Official MVP Definition
+Code Organization:
+- An outside user can understand the code and what is being written
+- Student displays knowledge of style learned throughout the semester
+
+User Interface (UI): 
+- Decent game interface
+- Representations for bombs and ships
+
+User Experience (UX):
+- Board contains all properties
+- Ships can legally placed around the board
+- All game rules implemented including:
+    - Placing ships
+    - Bombing ships 
+    - When the ship die
+
+Algorithmic Complexity: 
+- OOP 
+    - Keeps track of all cell status & ships
+- Game AI Opponent
+    - Before game: Being able to put in different ships every round
+    - During game: Being able to select cell to bomb with some sort of thinking 

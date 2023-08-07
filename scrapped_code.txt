@@ -26,3 +26,23 @@ class Plane(Ship):
     def __init__(self, image, width, cellWidth, cellHeight):
         super().__init__(image, width, cellWidth, cellHeight)
         self.height = 3
+
+
+
+
+
+
+# randomly generate a pixel location for each ship (temp)
+    for ship in app.redShips:
+        maxX = app.player2Board.left + app.player2Board.width - ship.pixelWidth
+        maxY = app.player2Board.top + app.player2Board.height - ship.pixelHeight
+        ship.pixelLeftX = random.randint(app.player2Board.left, maxX)
+        ship.pixelTopY = random.randint(app.player2Board.top, maxY)
+
+# get the closest row and col to the top left of the ship. Then, use the
+        # ship's grid shape to increment row and col of the initial starting row
+        # and col of board and set it to be the same as the ship's cell value
+        firstRow, firstCol = pixelToRowCol(ship.pixelLeftX, ship.pixelTopY, board, True)
+        for row in range(len(ship.gridShape)):
+            for col in range(len(ship.gridShape[row])):
+                board.board[firstRow + row][firstCol + col] = ship.gridShape[row][col]
