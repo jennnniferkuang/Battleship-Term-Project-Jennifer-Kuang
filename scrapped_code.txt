@@ -46,3 +46,8 @@ class Plane(Ship):
         for row in range(len(ship.gridShape)):
             for col in range(len(ship.gridShape[row])):
                 board.board[firstRow + row][firstCol + col] = ship.gridShape[row][col]
+
+- How to change app.width/height to screen width/height or let user choose
+- check to make sure computer's selected ship locations do not overlap. (Change to row, col generation instead?)
+- implement rotate ship
+- draw states of ships/guess

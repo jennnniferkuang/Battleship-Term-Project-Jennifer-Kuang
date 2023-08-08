@@ -4,6 +4,7 @@
 - Asset folder containing:
     - 2 planes, 1 for each opposing side
     - 8 ships, 4 for each opposing side
+    - hit ship image (Apple collision emoji)
 - Python file containing all code so far (see 'code' section)
 - This readme file
 - A gitattributes file that has absolutely no use to me
@@ -14,15 +15,17 @@
     given to me as the commissioner. As of now these are the only assets I have.
 
 **Code:**
-- Ship class (need 8 total, likely need to relate to grids in a way)
-- Grid class (need 2 for game)
+- I lied there's too much code just read the actual code
 
-**To Do:**
-- How to change app.width/height to screen width/height or let user choose
-- check to make sure computer's selected ship locations do not overlap. (Change to row, col generation instead?)
-- implement rotate ship
-- draw states of ships/guess
-- something buggy about guess dot
+**Reach MVP:**
+- computer search in direction
+- make ships stay in board bounds
+- restart
+
+**Post MVP:**
+- timer for computer guess
+- super mode (randomly spawned power-ups)
+- better graphics
 
 **Dev Only:**
 # Official MVP Definition

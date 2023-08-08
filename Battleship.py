@@ -17,15 +17,15 @@ class Board():
         self.borderWidth = 1
         self.cellWidth = self.width // self.cols
         self.cellHeight = self.height //self.rows
-        self.board = [[[0, 0]] * self.cols for i in range(self.rows)]
+        self.board = [[[0, 0] for i in range(self.cols)] for j in range(self.rows)]
         # In which the 3rd list represents [guessed, holds ship]
     
     def drawBoard(self):
         for row in range(self.rows):
             for col in range(self.cols):
                 self.drawCell(row, col)
-                if self.board[row][col][0] == 1:
-                    self.drawStatus(row, col, self.board[row][col][1])
+                if self.board[row][col][0] == 1 and self.board[row][col][1] != 1:
+                    self.drawStatus(row, col)
         self.drawBorder()
         self.drawCoordinateLabels()
     
@@ -51,24 +51,27 @@ class Board():
         drawRect(cellLeft, cellTop, self.cellWidth, self.cellHeight, 
                  fill = None, border = 'blue', borderWidth = self.borderWidth)
     
-    def drawStatus(self, row, col, status):
-        pX = self.left + self.cellWidth * row + self.cellWidth // 2
-        pY = self.top + self.cellHeight * col + self.cellHeight // 2
-        if status == 0:
-            drawCircle(pX, pY, self.cellWidth // 4, fill = 'black') # temp colour
+    def drawStatus(self, row, col):
+        pX = self.left + self.cellWidth * col + self.cellWidth // 2
+        pY = self.top + self.cellHeight * row + self.cellHeight // 2
+        drawCircle(pX, pY, self.cellWidth // 4, fill = 'blue') # temp colour
     
     def drawCrosshair(self, pX, pY):
         # given point x and point y, find row and column and draw a circle in
         # the respective cell.
         row, col = pixelToRowCol(pX, pY, self)
-        pixelMidX = (self.left + self.cellWidth * col) + self.cellWidth // 2
-        pixelMidY = (self.top + self.cellHeight * row) + self.cellHeight // 2
-        drawCircle(pixelMidX, pixelMidY, self.cellWidth // 3, fill = None,
+        pixelX, pixelY = rowColToPixel(row, col, self)
+        pixelX += self.cellWidth // 2
+        pixelY += self.cellHeight // 2
+        drawCircle(pixelX, pixelY, self.cellWidth // 3, fill = None,
                    borderWidth = 3, border = 'blue')
-        drawLine(pixelMidX, pixelMidY - self.cellHeight, pixelMidX, 
-                 pixelMidY + self.cellHeight, fill = 'blue', lineWidth = 3)
-        drawLine(pixelMidX - self.cellWidth, pixelMidY, pixelMidX + self.cellWidth, 
-                 pixelMidY, fill = 'blue', lineWidth = 3)
+        drawLine(pixelX, pixelY - self.cellHeight, pixelX, 
+                 pixelY + self.cellHeight, fill = 'blue', lineWidth = 3)
+        drawLine(pixelX - self.cellWidth, pixelY, pixelX + self.cellWidth, 
+                 pixelY, fill = 'blue', lineWidth = 3)
+
+    def reset(self):
+        self.board = [[[0, 0] for i in range(self.cols)] for j in range(self.rows)]
 
 ################################################################################
 ###########################    Ships and Planes    #############################
@@ -84,7 +87,7 @@ class Ship():
         self.gridHeight = height
         self.gridTopRow = None # override after initialization
         self.gridLeftCol = None # override after initialization
-        self.gridShape = [[[0, 1]] * self.gridWidth] * self.gridHeight
+        self.gridShape = [[[0, 1]] for i in range(self.gridWidth) for j in range(self.gridHeight)]
         # canvas info
         self.pixelWidth = self.gridWidth * board.cellWidth
         self.pixelHeight = self.gridHeight * board.cellHeight
@@ -98,15 +101,15 @@ class Ship():
         currShipImage = CMUImage(self.image)
         drawImage(currShipImage, self.pixelLeftX, self.pixelTopY)
 
-    def rotateShip(self, board):
+    def rotateShip(self):
         # rotate method referenced from official Pillow documentation:
         # https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.rotate 
         self.image = self.image.rotate(90, expand = True)
         self.pixelWidth, self.pixelHeight = self.pixelHeight, self.pixelWidth
-        self.pixelLeftX = board.left
-        self.pixelTopY = board.top - (self.pixelHeight + 50)
+        # self.pixelLeftX = board.left
+        # self.pixelTopY = board.top - (self.pixelHeight + 50)
         self.gridWidth, self.gridHeight = self.gridHeight, self.gridWidth
-        self.gridShape = [[[0, 1]] * self.gridWidth] * self.gridHeight
+        self.gridShape = [[[0, 1] for i in range(self.gridWidth)] for j in range (self.gridHeight)]
         self.image = self.image.resize((self.pixelWidth, self.pixelHeight))
     
     def placeShip(self, board):
@@ -117,6 +120,11 @@ class Ship():
         for row in range(len(self.gridShape)):
             for col in range(len(self.gridShape[row])):
                 board.board[firstRow + row][firstCol + col] = self.gridShape[row][col]
+
+    def snapToClosestRowCol(self, board):
+        closestRow, closestCol = pixelToRowCol(self.pixelLeftX, self.pixelTopY, board)
+        self.pixelLeftX = board.left + closestCol * board.cellWidth
+        self.pixelTopY = board.top + closestRow * board.cellHeight
 
 ################################################################################
 ###############################    Buttons    ##################################
@@ -154,28 +162,133 @@ def pixelToRowCol(pX, pY, board, getClosest = False):
     col = (pX - board.left) // board.cellWidth
     return row, col
 
+def rowColToPixel(row, col, board):
+    pixelX = board.left + (col * board.cellWidth)
+    pixelY = board.top + (row * board.cellHeight)
+    return pixelX, pixelY
+
+def isLegal(firstRow, firstCol, shipShape, board):
+    for row in range(len(shipShape)):
+            for col in range(len(shipShape[row])):
+                if (firstRow + row >= len(board.board) or firstCol + col >=
+                    len(board.board[row])):
+                    return False
+                if board.board[firstRow + row][firstCol + col][1] == 1:
+                    return False
+    return True
+
+def checkForSunkShips(app, ships, sunkShips):
+    for ship in ships:
+        sunk = True
+        for row in ship.gridShape:
+            if [0, 1] in row:
+                sunk = False
+        if sunk:
+            sunkShips.add(ship)
+    if len(sunkShips) == 4:
+        app.gameOver = True
+        if ships == app.redShips:
+            app.winner = 'Player'
+        else:
+            app.winner = 'Computer'
+        app.message = f'GAME OVER! Winner: {app.winner}'
+
 ################################################################################
 ###########################    Computer Player    ##############################
 ################################################################################
 
 def computerPlaceShips(app):
-    # for each ship, find their grid shape, then within, loop through the grid
-    # if not overlapping with any other ships, place on grid
-    # maybe change the ship's grid shape to hold its row, col instead of just 1
-    # then use 'in' to minimize a loop
-    pass
+    # for each ship, randomize whether to rotate or not. Randomize a row, col
+    # and check if the whole ship a) fits on the board and b) is not overlapping
+    # with another ship. If legal, place on board and set the pixel location.
+    for ship in app.redShips:
+        rotate = random.randint(0, 1)
+        if rotate == 1:
+            ship.rotateShip()
+        ship.gridTopRow = random.randint(0, 9) # temp
+        ship.gridLeftCol = random.randint(0, 9)
+        while not isLegal(ship.gridTopRow, ship.gridLeftCol, 
+                               ship.gridShape, app.computerBoard):
+            ship.gridTopRow = random.randint(0, 9) # temp
+            ship.gridLeftCol = random.randint(0, 9)
+        ship.pixelLeftX, ship.pixelTopY = rowColToPixel(ship.gridTopRow,
+                                                            ship.gridLeftCol,
+                                                            app.computerBoard)
+        ship.placeShip(app.computerBoard)
 
+# app.direction
+# app.prevHit
+# app.initialHit
+# what if there are ships side by side check if ship in that shape is sunk
+# app.currHitShipShape
+# app.sunkShips1
+# app.sunkShips2
 def computerGuess(app):
     guessRow = random.randint(0, 9) # temp
     guessCol = random.randint(0, 9)
-    while app.player1Board.board[guessRow][guessCol][0] == 1:
+    while app.playerBoard.board[guessRow][guessCol][0] == 1:
         guessRow = random.randint(0, 9) # temp
         guessCol = random.randint(0, 9)
-    app.player1Board.board[guessRow][guessCol][0] = 1
+    app.playerBoard.board[guessRow][guessCol][0] = 1
+    # check if all cells of ship are guessed. If so, add to set of hit ships
+    checkForSunkShips(app, app.blueShips, app.playerSunkShips)
+    app.playerTurn = True
 
 ################################################################################
-###########################    Mouse Interaction    ############################
+#######################   Helper Mouse Interaction    ##########################
 ################################################################################
+
+# if clicked 'confirm placement' button, place all ships and start game
+def pressedConfirm(app, mouseX, mouseY):
+    if inRect(mouseX, mouseY, app.confirmButton.midX - app.confirmButton.width // 2,
+              app.confirmButton.midY - app.confirmButton.height // 2, 
+              app.confirmButton.width, app.confirmButton.height):
+        legalPlacement = True
+        for ship in app.blueShips:
+            ship.gridTopRow, ship.gridLeftCol = pixelToRowCol(ship.pixelLeftX, ship.pixelTopY,
+                                                              app.playerBoard, True)
+            if isLegal(ship.gridTopRow, ship.gridLeftCol, ship.gridShape, app.playerBoard):
+                ship.placeShip(app.playerBoard)
+            else:
+                app.message = 'ILLEGAL PLACEMENT'
+                legalPlacement = False
+        if legalPlacement:
+            computerPlaceShips(app)
+            app.gameStarted = True
+            app.message = 'YOUR TURN'
+        else:
+            app.playerBoard.reset()
+    # player guesses cell
+
+def pressedRotate(app, mouseX, mouseY):
+    if (inRect(mouseX, mouseY, app.rotateButton.midX - app.rotateButton.width // 2,
+               app.rotateButton.midY - app.rotateButton.height // 2, app.rotateButton.width, 
+               app.rotateButton.height) and app.prevHeldShip != None):
+        app.prevHeldShip.rotateShip()
+
+def playerGuess(app, mouseX, mouseY):
+    if (app.playerTurn and inRect(mouseX, mouseY, app.computerBoard.left, 
+        app.computerBoard.top, app.computerBoard.width, app.computerBoard.height)):
+        hitRow, hitCol = pixelToRowCol(mouseX, mouseY, app.computerBoard)
+        # set first value of status list to 1
+        if app.computerBoard.board[hitRow][hitCol][0] != 1:
+            app.computerBoard.board[hitRow][hitCol][0] = 1
+            app.playerTurn = False
+            # check if all cells of ship are guessed. If so, add to set of hit ships
+            checkForSunkShips(app, app.redShips, app.computerSunkShips)
+            computerGuess(app) # temp, make longer wait time
+
+def shipDrag(app, mouseX, mouseY):
+    # pick up ship is no ship is currently being held and the position is
+    # within the new ship
+    for ship in app.blueShips:
+        if (app.heldShip == None or ship == app.heldShip) and inRect(mouseX, 
+            mouseY, ship.pixelLeftX, ship.pixelTopY, ship.pixelWidth, ship.pixelHeight):
+            app.heldShip = ship
+    # constantly update ship location if a ship is being held
+    if app.heldShip != None:
+        app.heldShip.pixelLeftX = mouseX - app.heldShip.pixelWidth // 2
+        app.heldShip.pixelTopY = mouseY - app.heldShip.pixelHeight // 2
 
 # checks if point is within a rectangle given leftX, topY, width, and height of 
 # the rectangle
@@ -184,39 +297,29 @@ def inRect(pX, pY, x, y, width, height):
         return True
     return False
 
-def onMousePress(app, mouseX, mouseY):
-    # if clicked 'confirm placement' button, place all ships and start game
-    if inRect(mouseX, mouseY, app.confirmButton.midX - app.confirmButton.width // 2,
-              app.confirmButton.midY - app.confirmButton.height // 2, 
-              app.confirmButton.width, app.confirmButton.height):
-        for ship in app.blueShips:
-            ship.placeShip(app.player1Board)
-        app.gameStarted = True
-    # player guesses cell
-    elif app.gameStarted and app.playerTurn:
-        hitRow, hitCol = pixelToRowCol(mouseX, mouseY, app.player2Board)
-        # set first value of status list to 1
-        app.player2Board.board[hitRow][hitCol][0] = 1
-        app.playerTurn = False
-        computerGuess(app) # temp, make longer wait time
+################################################################################
+#########################   Top Mouse Interaction    ###########################
+################################################################################
 
 def onMouseDrag(app, mouseX, mouseY):
     if not app.gameStarted:
-        # pick up ship is no ship is currently being held and the position is
-        # within the new ship
-        for ship in app.blueShips:
-            if (app.heldShip == None or ship == app.heldShip) and inRect(mouseX, 
-                mouseY, ship.pixelLeftX, ship.pixelTopY, ship.pixelWidth, ship.pixelHeight):
-                app.heldShip = ship
-        # constantly update ship location if a ship is being held
-        if app.heldShip != None:
-            app.heldShip.pixelLeftX = mouseX - app.heldShip.pixelWidth // 2
-            app.heldShip.pixelTopY = mouseY - app.heldShip.pixelHeight // 2
+        shipDrag(app, mouseX, mouseY)
+
+def onMousePress(app, mouseX, mouseY):
+    if not app.gameOver:
+        if not app.gameStarted:
+            pressedConfirm(app, mouseX, mouseY)
+            pressedRotate(app, mouseX, mouseY)
+        if app.gameStarted:
+            playerGuess(app, mouseX, mouseY)
 
 def onMouseRelease(app, mouseX, mouseY):
-    # release held ships, can pick up new ship after release
-    app.prevHeldShip = app.heldShip
-    app.heldShip = None
+    if not app.gameOver:
+        # release held ships, can pick up new ship after release
+        if app.heldShip != None:
+            app.prevHeldShip = app.heldShip
+            app.heldShip.snapToClosestRowCol(app.playerBoard)
+            app.heldShip = None
 
 def onMouseMove(app, mouseX, mouseY):
     # update global app mouse pos variables for use by: aim scope tracking
@@ -232,63 +335,88 @@ def onAppStart(app):
     app.heldShip = None
     app.prevHeldShip = None
     app.gameStarted = False
+    app.gameOver = False
     app.playerTurn = True
     app.mousePosX = 0
     app.mousePosY = 0
     app.message = 'BATTLESHIP'
-    initiateBoard(app)
-    initiatePlayerShips(app)
-    initiateComputerShips(app)
-    initiateButtons(app)
+    app.playerSunkShips = set()
+    app.computerSunkShips = set()
+    initializeBoard(app)
+    initializePlayerShips(app)
+    initializeComputerShips(app)
+    initializeButtons(app)
+    initializeHitShipImage(app)
 
-def initiateBoard(app):
-    app.player1Board = Board(400, 400, 10, 10)
-    app.player2Board = Board(400, 400, 10, 10)
+def initializeBoard(app):
+    app.playerBoard = Board(400, 400, 10, 10)
+    app.computerBoard = Board(400, 400, 10, 10)
     # player 1 board aligned to middle of left half and middle of height
-    app.player1Board.left = app.width // 4 - app.player1Board.width // 2
-    app.player1Board.top = app.height // 2 - app.player1Board.height // 2
+    app.playerBoard.left = app.width // 4 - app.playerBoard.width // 2
+    app.playerBoard.top = app.height // 2 - app.playerBoard.height // 2
     # player 2 board aligned to middle of right half and middle of height
-    app.player2Board.left = (3 * app.width) // 4 - app.player2Board.width // 2
-    app.player2Board.top = app.height // 2 - app.player2Board.height // 2
+    app.computerBoard.left = (3 * app.width) // 4 - app.computerBoard.width // 2
+    app.computerBoard.top = app.height // 2 - app.computerBoard.height // 2
 
-def initiatePlayerShips(app):
+def initializePlayerShips(app):
     app.blueShips = []
     # the following images are illustrated by my friend @gawain_draws on
     # Instagram for my commission. All drawings are paid for and I have explicit 
     # permission from him to use these illustrations for this project.
-    app.blueShips.append(Ship('assets/A_destroyer_2.png', 2, app.player1Board)) # temp
-    app.blueShips.append(Ship('assets/A_cruiser_3.png', 3, app.player1Board))
-    app.blueShips.append(Ship('assets/A_carrier_4.png', 4, app.player1Board))
-    app.blueShips.append(Ship('assets/A_battleship_5.png', 5, app.player1Board))
+    app.blueShips.append(Ship('assets/A_destroyer_2.png', 2, app.playerBoard)) # temp
+    app.blueShips.append(Ship('assets/A_cruiser_3.png', 3, app.playerBoard))
+    app.blueShips.append(Ship('assets/A_carrier_4.png', 4, app.playerBoard))
+    app.blueShips.append(Ship('assets/A_battleship_5.png', 5, app.playerBoard))
     # initialize stating position (from left to right)
     for ship in range(len(app.blueShips)):
-        app.blueShips[ship].pixelLeftX += (ship * app.player1Board.cellWidth)
+        app.blueShips[ship].pixelLeftX += (ship * app.playerBoard.cellWidth)
 
-def initiateComputerShips(app):
+def initializeComputerShips(app):
     app.redShips = []
     # the following images are illustrated by my friend @gawain_draws on
     # Instagram for my commission. All drawings are paid for and I have explicit 
     # permission from him to use these illustrations for this project.
-    app.redShips.append(Ship('assets/B_destroyer_2.png', 2, app.player2Board)) # temp
-    app.redShips.append(Ship('assets/B_cruiser_3.png', 3, app.player2Board))
-    app.redShips.append(Ship('assets/B_carrier_4.png', 4, app.player2Board))
-    app.redShips.append(Ship('assets/B_battleship_5.png', 5, app.player2Board))
+    app.redShips.append(Ship('assets/B_destroyer_2.png', 2, app.computerBoard)) # temp
+    app.redShips.append(Ship('assets/B_cruiser_3.png', 3, app.computerBoard))
+    app.redShips.append(Ship('assets/B_carrier_4.png', 4, app.computerBoard))
+    app.redShips.append(Ship('assets/B_battleship_5.png', 5, app.computerBoard))
 
-def initiateButtons(app):
+def initializeHitShipImage(app):
+    # image is the collision symbol emoji from Apple. I typed it in on my Ipad's
+    # drawing application and exported the transparent background png.
+    app.hitShip = Image.open('assets/hit-ship.png')
+    app.hitShip = app.hitShip.resize((app.playerBoard.cellWidth, app.playerBoard.cellHeight))
+    app.hitShip = CMUImage(app.hitShip)
+
+def initializeButtons(app):
     # 'confirm placement' button
-    confirmButtonX = app.player1Board.left + (app.player1Board.width // 2)
-    confirmButtonY = app.player1Board.top + app.player1Board.height + 50
+    confirmButtonX = app.playerBoard.left + (app.playerBoard.width // 2)
+    confirmButtonY = app.playerBoard.top + app.playerBoard.height + 45
     app.confirmButton = Button('confirm placement', confirmButtonX, 
                                 confirmButtonY, 200, 50)
+    # 'rotate ship' button
+    app.rotateButton = Button('rotate ship', confirmButtonX, confirmButtonY + 65,
+                              200, 50)
 
 ################################################################################
 ##################################    Draw    ##################################
 ################################################################################
 
 # using the list of player ships, draw them on the board
-def drawPlayerShips(ships): 
-    for ship in range(len(ships)):
-        ships[ship].drawShip() # temp
+def drawShips(ships): 
+    for ship in ships:
+        ship.drawShip() # temp
+
+def drawHitCells(app, board):
+    for row in range(board.rows):
+        for col in range(board.cols):
+            if board.board[row][col] == [1, 1]:
+                pixelX, pixelY = rowColToPixel(row, col, board)
+                drawImage(app.hitShip, pixelX, pixelY)
+
+def drawSunkComputerShips(app):
+    for ship in app.computerSunkShips:
+        ship.drawShip()
 
 # draw message/status box in top middle of board
 def drawMessageBox(app):
@@ -299,27 +427,30 @@ def drawMessageBox(app):
 def drawCrosshair(app):
     # the mouse is within the computer's board, draw the crosshair to select a 
     # cell to fire at.
-    rightBound = app.player2Board.left + app.player2Board.width
-    bottomBound = app.player2Board.top + app.player2Board.height
-    if (app.player2Board.left <= app.mousePosX <= rightBound and 
-        app.player2Board.top <= app.mousePosY <= bottomBound):
-        app.player2Board.drawCrosshair(app.mousePosX, app.mousePosY)
+    rightBound = app.computerBoard.left + app.computerBoard.width
+    bottomBound = app.computerBoard.top + app.computerBoard.height
+    if (app.computerBoard.left <= app.mousePosX <= rightBound and 
+        app.computerBoard.top <= app.mousePosY <= bottomBound):
+        app.computerBoard.drawCrosshair(app.mousePosX, app.mousePosY)
 
 ################################################################################
 ######################   Tippity Toppest Top Level   ###########################
 ################################################################################
 
 def redrawAll(app):
-    app.player1Board.drawBoard()
-    app.player2Board.drawBoard()
-    drawPlayerShips(app.blueShips)
-    drawPlayerShips(app.redShips) # temp
+    app.playerBoard.drawBoard()
+    app.computerBoard.drawBoard()
+    drawShips(app.blueShips)
+    drawSunkComputerShips(app)
+    drawHitCells(app, app.playerBoard)
+    drawHitCells(app, app.computerBoard)
     drawMessageBox(app)
     # if game has not started yet
     if not app.gameStarted:
         app.confirmButton.drawButton()
+        app.rotateButton.drawButton()
     # if the game is started
-    if app.playerTurn and app.gameStarted:
+    if app.playerTurn and app.gameStarted and not app.gameOver:
         drawCrosshair(app)
 
 def main():
