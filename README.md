@@ -20,12 +20,13 @@
 **Reach MVP:**
 - computer search in direction
 - make ships stay in board bounds
-- restart
+- 
 
 **Post MVP:**
 - timer for computer guess
 - super mode (randomly spawned power-ups)
 - better graphics
+- 
 
 **Dev Only:**
 # Official MVP Definition

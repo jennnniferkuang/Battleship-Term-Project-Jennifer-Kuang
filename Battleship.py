@@ -167,15 +167,26 @@ def rowColToPixel(row, col, board):
     pixelY = board.top + (row * board.cellHeight)
     return pixelX, pixelY
 
-def isLegal(firstRow, firstCol, shipShape, board):
+def isLegalShip(app, firstRow, firstCol, shipShape, board):
     for row in range(len(shipShape)):
             for col in range(len(shipShape[row])):
-                if (firstRow + row >= len(board.board) or firstCol + col >=
-                    len(board.board[row])):
+                currRow = firstRow + row
+                currCol = firstCol + col
+                # if out of board bounds
+                if (currRow >= len(board.board) or currCol >= len(board.board[row])):
                     return False
-                if board.board[firstRow + row][firstCol + col][1] == 1:
+                # if cell already has a ship
+                if board.board[currRow][currCol][1] == 1:
                     return False
+                # if surrounding cells already have ships
+                for drow, dcol in app.directions:
+                    if isLegalRowCol(currRow + drow, currCol + dcol, board):
+                        if board.board[currRow + drow][currCol + dcol][1] == 1:
+                            return False
     return True
+
+def isLegalRowCol(row, col, board):
+    return 0 <= row < len(board.board) and 0 <= col < len(board.board[row])
 
 def checkForSunkShips(app, ships, sunkShips):
     for ship in ships:
@@ -193,6 +204,9 @@ def checkForSunkShips(app, ships, sunkShips):
             app.winner = 'Computer'
         app.message = f'GAME OVER! Winner: {app.winner}'
 
+def resetDirections(app):
+    app.directions = [(1, 0), (-1, 0), (0, -1), (0, 1)]
+
 ################################################################################
 ###########################    Computer Player    ##############################
 ################################################################################
@@ -207,7 +221,7 @@ def computerPlaceShips(app):
             ship.rotateShip()
         ship.gridTopRow = random.randint(0, 9) # temp
         ship.gridLeftCol = random.randint(0, 9)
-        while not isLegal(ship.gridTopRow, ship.gridLeftCol, 
+        while not isLegalShip(app, ship.gridTopRow, ship.gridLeftCol, 
                                ship.gridShape, app.computerBoard):
             ship.gridTopRow = random.randint(0, 9) # temp
             ship.gridLeftCol = random.randint(0, 9)
@@ -216,27 +230,81 @@ def computerPlaceShips(app):
                                                             app.computerBoard)
         ship.placeShip(app.computerBoard)
 
-# app.direction
-# app.prevHit
-# app.initialHit
-# what if there are ships side by side check if ship in that shape is sunk
-# app.currHitShipShape
-# app.sunkShips1
-# app.sunkShips2
 def computerGuess(app):
-    guessRow = random.randint(0, 9) # temp
-    guessCol = random.randint(0, 9)
-    while app.playerBoard.board[guessRow][guessCol][0] == 1:
+    # 1. if hit, set initial guess to hit cell
+    # 2. prev hit changes each time a ship is hit consecutively
+    # 3. search in all directions. If direction does not contain ship or is not 
+    #    legal, pop from directions list. Else, if it does hit, set the direction
+    #    and its opposite to be the directions list
+    # 4. once hit an empty cell, pop the first direction being used and go back
+    #    to initial guess. Then, use the opposite direction until out of guesses
+    # 5. Once directions is empty, set initial guess back to None and restart
+    guessRow = None
+    guessCol = None
+    # if nothing has been hit yet
+    if app.initialHit == None:
+        # randomize guess until hit
         guessRow = random.randint(0, 9) # temp
         guessCol = random.randint(0, 9)
-    app.playerBoard.board[guessRow][guessCol][0] = 1
-    # check if all cells of ship are guessed. If so, add to set of hit ships
+        while app.playerBoard.board[guessRow][guessCol][0] == 1:
+            guessRow = random.randint(0, 9) # temp
+            guessCol = random.randint(0, 9)
+        app.playerBoard.board[guessRow][guessCol][0] = 1
+        # set initial hit and prevHit to hit cell
+        if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+            app.initialHit = (guessRow, guessCol)
+            app.prevHit = (guessRow, guessCol)
+    # once there is an active ship being attacked
+    else:
+        # check guess in each direction until hit in direction
+        guessRow, guessCol = app.prevHit
+        # BUG HERE
+        dRow, dcol = app.directions[0]
+        guessRow += dRow
+        guessCol += dcol
+        # if not legal direction, go back and remove that direction and try the
+        # next one
+        while not isLegalRowCol(guessRow, guessCol, app.playerBoard):
+            guessRow -= dRow
+            guessCol -= dcol
+            app.directions.pop(0)
+            if len(app.directions) == 0:
+                break
+            dRow, dcol = app.directions[0]
+            guessRow += dRow
+            guessCol += dcol
+        # legal direction, make the guess
+        else:
+            app.playerBoard.board[guessRow][guessCol][0] = 1
+            # landed a hit
+            if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+                # if the last hit was the initial hit, set direction to that
+                # direction and its opposite
+                if app.initialHit == app.prevHit:
+                    if len(app.directions) == 3:
+                        app.directions = app.directions[1] # edge case?
+                    else:
+                        app.directions = app.directions[0:2]
+                app.prevHit = (guessRow, guessCol)
+            # did not land a hit
+            else:
+                app.directions.pop(0)
+                app.prevHit = app.initialHit
+                if len(app.directions) == 0:
+                    app.initialHit = None
+                    resetDirections(app)
     checkForSunkShips(app, app.blueShips, app.playerSunkShips)
     app.playerTurn = True
 
 ################################################################################
 #######################   Helper Mouse Interaction    ##########################
 ################################################################################
+
+def pressedStart(app, mouseX, mouseY):
+    if inRect(mouseX, mouseY, app.startButton.midX - app.startButton.width // 2,
+              app.startButton.midY - app.startButton.height // 2, 
+              app.startButton.width, app.startButton.height):
+        app.inStartScreen = False
 
 # if clicked 'confirm placement' button, place all ships and start game
 def pressedConfirm(app, mouseX, mouseY):
@@ -247,7 +315,7 @@ def pressedConfirm(app, mouseX, mouseY):
         for ship in app.blueShips:
             ship.gridTopRow, ship.gridLeftCol = pixelToRowCol(ship.pixelLeftX, ship.pixelTopY,
                                                               app.playerBoard, True)
-            if isLegal(ship.gridTopRow, ship.gridLeftCol, ship.gridShape, app.playerBoard):
+            if isLegalShip(app, ship.gridTopRow, ship.gridLeftCol, ship.gridShape, app.playerBoard):
                 ship.placeShip(app.playerBoard)
             else:
                 app.message = 'ILLEGAL PLACEMENT'
@@ -265,6 +333,12 @@ def pressedRotate(app, mouseX, mouseY):
                app.rotateButton.midY - app.rotateButton.height // 2, app.rotateButton.width, 
                app.rotateButton.height) and app.prevHeldShip != None):
         app.prevHeldShip.rotateShip()
+
+def pressedPlayAgain(app, mouseX, mouseY):
+    if (inRect(mouseX, mouseY, app.playAgainButton.midX - app.playAgainButton.width // 2,
+               app.playAgainButton.midY - app.playAgainButton.height // 2, 
+               app.playAgainButton.width, app.playAgainButton.height)):
+        resetGame(app)
 
 def playerGuess(app, mouseX, mouseY):
     if (app.playerTurn and inRect(mouseX, mouseY, app.computerBoard.left, 
@@ -302,16 +376,20 @@ def inRect(pX, pY, x, y, width, height):
 ################################################################################
 
 def onMouseDrag(app, mouseX, mouseY):
-    if not app.gameStarted:
+    if not app.gameStarted and not app.inStartScreen:
         shipDrag(app, mouseX, mouseY)
 
 def onMousePress(app, mouseX, mouseY):
-    if not app.gameOver:
+    if app.inStartScreen:
+        pressedStart(app, mouseX, mouseY)
+    elif not app.gameOver:
         if not app.gameStarted:
             pressedConfirm(app, mouseX, mouseY)
             pressedRotate(app, mouseX, mouseY)
         if app.gameStarted:
             playerGuess(app, mouseX, mouseY)
+    elif app.gameOver:
+        pressedPlayAgain(app, mouseX, mouseY)
 
 def onMouseRelease(app, mouseX, mouseY):
     if not app.gameOver:
@@ -329,9 +407,8 @@ def onMouseMove(app, mouseX, mouseY):
 ############################    Initialization    ##############################
 ################################################################################
 
-def onAppStart(app):
-    app.width = 1200
-    app.height = 700
+def resetGame(app):
+    app.inStartScreen = True
     app.heldShip = None
     app.prevHeldShip = None
     app.gameStarted = False
@@ -342,11 +419,18 @@ def onAppStart(app):
     app.message = 'BATTLESHIP'
     app.playerSunkShips = set()
     app.computerSunkShips = set()
+    app.initialHit = None
     initializeBoard(app)
     initializePlayerShips(app)
     initializeComputerShips(app)
     initializeButtons(app)
     initializeHitShipImage(app)
+    resetDirections(app)
+
+def onAppStart(app):
+    app.width = 1200
+    app.height = 700
+    resetGame(app)
 
 def initializeBoard(app):
     app.playerBoard = Board(400, 400, 10, 10)
@@ -392,15 +476,33 @@ def initializeButtons(app):
     # 'confirm placement' button
     confirmButtonX = app.playerBoard.left + (app.playerBoard.width // 2)
     confirmButtonY = app.playerBoard.top + app.playerBoard.height + 45
-    app.confirmButton = Button('confirm placement', confirmButtonX, 
-                                confirmButtonY, 200, 50)
+    app.confirmButton = Button('confirm placement', confirmButtonX, confirmButtonY, 200, 50)
     # 'rotate ship' button
-    app.rotateButton = Button('rotate ship', confirmButtonX, confirmButtonY + 65,
-                              200, 50)
+    app.rotateButton = Button('rotate ship', confirmButtonX, confirmButtonY + 65, 200, 50)
+    # 'play again' button
+    app.playAgainButton = Button('play again', app.width // 2, app.height - 100, 200, 50)
+    # 'start' button
+    app.startButton = Button('start', app.width // 2, (3 * app.height) // 4, 200, 50)
 
 ################################################################################
 ##################################    Draw    ##################################
 ################################################################################
+
+def drawStartScreen(app):
+    drawLabel('BATTLESHIP', app.width // 2, app.height // 4, size = 100, fill = 'blue')
+    drawLabel('Drag and release ships to place them on grid. After releasing a ship,', 
+              app.width // 2, app.height // 2 - 50, size = 16, fill = 'blue')
+    drawLabel("press 'rotate' button to rotate previously held ship 90 degrees.",
+              app.width // 2, app.height // 2 - 25, size = 16, fill = 'blue')
+    drawLabel("Ships cannot be placed touching eachother or outside the board.",
+              app.width // 2, app.height // 2, size = 16, fill = 'blue')
+    drawLabel("Press 'confirm placement' to start game.",
+              app.width // 2, app.height // 2 + 25, size = 16, fill = 'blue')
+    drawLabel("Then click on a cell to make a guess.",
+              app.width // 2, app.height // 2 + 50, size = 16, fill = 'blue')
+    drawLabel("Your objective is to guess all of the oponent's ships before they guess yours.",
+              app.width // 2, app.height // 2 + 75, size = 16, fill = 'blue')
+    app.startButton.drawButton()
 
 # using the list of player ships, draw them on the board
 def drawShips(ships): 
@@ -438,20 +540,26 @@ def drawCrosshair(app):
 ################################################################################
 
 def redrawAll(app):
-    app.playerBoard.drawBoard()
-    app.computerBoard.drawBoard()
-    drawShips(app.blueShips)
-    drawSunkComputerShips(app)
-    drawHitCells(app, app.playerBoard)
-    drawHitCells(app, app.computerBoard)
-    drawMessageBox(app)
-    # if game has not started yet
-    if not app.gameStarted:
-        app.confirmButton.drawButton()
-        app.rotateButton.drawButton()
-    # if the game is started
-    if app.playerTurn and app.gameStarted and not app.gameOver:
-        drawCrosshair(app)
+    if app.inStartScreen:
+        drawStartScreen(app)
+    else:
+        app.playerBoard.drawBoard()
+        app.computerBoard.drawBoard()
+        drawShips(app.blueShips)
+        drawSunkComputerShips(app)
+        drawHitCells(app, app.playerBoard)
+        drawHitCells(app, app.computerBoard)
+        drawMessageBox(app)
+        # if game has not started yet
+        if not app.gameStarted:
+            app.confirmButton.drawButton()
+            app.rotateButton.drawButton()
+        # if the game is started
+        if app.playerTurn and app.gameStarted and not app.gameOver:
+            drawCrosshair(app)
+        # if game over
+        if app.gameOver:
+            app.playAgainButton.drawButton()
 
 def main():
     runApp()

@@ -51,3 +51,42 @@ class Plane(Ship):
 - check to make sure computer's selected ship locations do not overlap. (Change to row, col generation instead?)
 - implement rotate ship
 - draw states of ships/guess
+
+def computerGuess(app):
+    # generate a random guess if no active ship
+    guessRow = random.randint(0, 9) # temp
+    guessCol = random.randint(0, 9)
+    while app.playerBoard.board[guessRow][guessCol][0] == 1:
+        guessRow = random.randint(0, 9) # temp
+        guessCol = random.randint(0, 9)
+    app.playerBoard.board[guessRow][guessCol][0] = 1
+    # check if all cells of ship are guessed. If so, add to set of hit ships
+    checkForSunkShips(app, app.blueShips, app.playerSunkShips)
+    app.playerTurn = True
+
+
+    # if a ship is hit
+    if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+        if (app.prevHitX, app.prevHitY) == (None, None):
+            app.initialHitX, app.initialHitY = (guessRow, guessCol)
+            app.prevHitX, app.prevHitY = (guessRow, guessCol)
+        else:
+            app.prevHitX, app.prevHitY = (guessRow, guessCol)
+    else:
+        pass
+
+app.initialHit = None
+resetDirections(app)
+app.direction
+app.prevHit
+app.initialHit
+what if there are ships side by side check if ship in that shape is sunk
+app.currHitShipShape
+app.sunkShips1
+app.sunkShips2
+
+if (firstRow + row >= len(board.board) or firstCol + col >=
+                    len(board.board[row])):
+                    return False
+                if board.board[firstRow + row][firstCol + col][1] == 1:
+                    return False
