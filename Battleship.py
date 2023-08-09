@@ -230,6 +230,18 @@ def computerPlaceShips(app):
                                                             app.computerBoard)
         ship.placeShip(app.computerBoard)
 
+def computerRandomGuess(app):
+    guessRow = random.randint(0, 9) # temp
+    guessCol = random.randint(0, 9)
+    while app.playerBoard.board[guessRow][guessCol][0] == 1:
+        guessRow = random.randint(0, 9) # temp
+        guessCol = random.randint(0, 9)
+    app.playerBoard.board[guessRow][guessCol][0] = 1
+    # set initial hit and prevHit to hit cell
+    if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+        app.initialHit = (guessRow, guessCol)
+        app.prevHit = (guessRow, guessCol)
+
 def computerGuess(app):
     # 1. if hit, set initial guess to hit cell
     # 2. prev hit changes each time a ship is hit consecutively
@@ -239,23 +251,18 @@ def computerGuess(app):
     # 4. once hit an empty cell, pop the first direction being used and go back
     #    to initial guess. Then, use the opposite direction until out of guesses
     # 5. Once directions is empty, set initial guess back to None and restart
+    if len(app.directions) == 0:
+        app.initialHit = None
+        resetDirections(app)
     guessRow = None
     guessCol = None
     # if nothing has been hit yet
     if app.initialHit == None:
         # randomize guess until hit
-        guessRow = random.randint(0, 9) # temp
-        guessCol = random.randint(0, 9)
-        while app.playerBoard.board[guessRow][guessCol][0] == 1:
-            guessRow = random.randint(0, 9) # temp
-            guessCol = random.randint(0, 9)
-        app.playerBoard.board[guessRow][guessCol][0] = 1
-        # set initial hit and prevHit to hit cell
-        if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
-            app.initialHit = (guessRow, guessCol)
-            app.prevHit = (guessRow, guessCol)
+        computerRandomGuess(app)
     # once there is an active ship being attacked
     else:
+        print(app.initialHit, app.directions)
         # check guess in each direction until hit in direction
         guessRow, guessCol = app.prevHit
         # BUG HERE
@@ -265,6 +272,9 @@ def computerGuess(app):
         # if not legal direction, go back and remove that direction and try the
         # next one
         while not isLegalRowCol(guessRow, guessCol, app.playerBoard):
+            if app.playerBoard.board[guessRow][guessCol][0] == 1 and len(app.directions) > 0:
+                app.directions.pop(0)
+                app.prevHit = app.initialHit
             guessRow -= dRow
             guessCol -= dcol
             app.directions.pop(0)
@@ -274,25 +284,27 @@ def computerGuess(app):
             guessRow += dRow
             guessCol += dcol
         # legal direction, make the guess
-        else:
+        if len(app.directions) > 0:
             app.playerBoard.board[guessRow][guessCol][0] = 1
-            # landed a hit
-            if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
-                # if the last hit was the initial hit, set direction to that
-                # direction and its opposite
-                if app.initialHit == app.prevHit:
-                    if len(app.directions) == 3:
-                        app.directions = app.directions[1] # edge case?
-                    else:
-                        app.directions = app.directions[0:2]
-                app.prevHit = (guessRow, guessCol)
-            # did not land a hit
-            else:
-                app.directions.pop(0)
-                app.prevHit = app.initialHit
-                if len(app.directions) == 0:
-                    app.initialHit = None
-                    resetDirections(app)
+        elif len(app.directions) == 0:
+            computerRandomGuess(app)
+        # landed a hit
+        if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+            # if the last hit was the initial hit, set direction to that
+            # direction and its opposite
+            if app.initialHit == app.prevHit:
+                if len(app.directions) == 3:
+                    app.directions = [app.directions[0]] # edge case?
+                else:
+                    app.directions = app.directions[0:2]
+            app.prevHit = (guessRow, guessCol)
+        # did not land a hit
+        else:
+            app.directions.pop(0)
+            app.prevHit = app.initialHit
+            if len(app.directions) == 0:
+                app.initialHit = None
+                resetDirections(app)
     checkForSunkShips(app, app.blueShips, app.playerSunkShips)
     app.playerTurn = True
 
