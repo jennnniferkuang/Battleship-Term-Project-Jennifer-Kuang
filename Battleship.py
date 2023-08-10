@@ -1,7 +1,6 @@
 from cmu_graphics import *
 from PIL import Image
 import random
-import copy
 
 ################################################################################
 ################################    Board    ###################################
@@ -19,7 +18,7 @@ class Board():
         self.cellWidth = self.width // self.cols
         self.cellHeight = self.height //self.rows
         self.board = [[[0, 0] for i in range(self.cols)] for j in range(self.rows)]
-        # In which the 3rd list represents [guessed, holds ship]
+        # In which the innermost list represents [guessed, holds ship]
     
     def drawBoard(self):
         for row in range(self.rows):
@@ -55,7 +54,7 @@ class Board():
     def drawStatus(self, row, col):
         pX = self.left + self.cellWidth * col + self.cellWidth // 2
         pY = self.top + self.cellHeight * row + self.cellHeight // 2
-        drawCircle(pX, pY, self.cellWidth // 4, fill = 'blue') # temp colour
+        drawCircle(pX, pY, self.cellWidth // 4, fill = 'blue')
     
     def drawCrosshair(self, pX, pY):
         # given point x and point y, find row and column and draw a circle in
@@ -84,7 +83,7 @@ class Board():
 class Ship():
     def __init__(self, image, height, board):
         # grid info
-        self.gridWidth = 1 # default
+        self.gridWidth = 1
         self.gridHeight = height
         self.gridTopRow = None # override after initialization
         self.gridLeftCol = None # override after initialization
@@ -107,8 +106,6 @@ class Ship():
         # https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.rotate 
         self.image = self.image.rotate(90, expand = True)
         self.pixelWidth, self.pixelHeight = self.pixelHeight, self.pixelWidth
-        # self.pixelLeftX = board.left
-        # self.pixelTopY = board.top - (self.pixelHeight + 50)
         self.gridWidth, self.gridHeight = self.gridHeight, self.gridWidth
         self.gridShape = [[[0, 1] for i in range(self.gridWidth)] for j in range (self.gridHeight)]
         self.image = self.image.resize((self.pixelWidth, self.pixelHeight))
@@ -138,7 +135,7 @@ class Button():
         self.midY = midY
         self.width = width
         self.height = height
-        self.buttonColour = 'blue'
+        self.buttonColour = 'blue' # default
         self.textColour = 'white'
     
     def drawButton(self):
@@ -150,41 +147,48 @@ class Button():
     def inButton(self, x, y):
         return inRect(x, y, self.midX - self.width // 2, self.midY - self.height // 2, 
                       self.width, self.height)
+    
+    def hover(self, app):
+        if self.inButton(app.mousePosX, app.mousePosY):
+            self.buttonColour = 'purple'
+        else:
+            self.buttonColour = 'blue'
 
 ################################################################################
 ##############################    Power Ups    #################################
 ################################################################################
 
-class PowerUp():
-    def __init__(self, row, col):
+class AreaPowerUp():
+    def __init__(self, row, col, board):
         self.row = row
         self.col = col
+        board.board[row][col][1] = 2
     
     def clickedPowerUp(self, app, mouseX, mouseY, board):
         row, col = pixelToRowCol(mouseX, mouseY)
-        if isLegalRowCol(row, col, board):
-            board[row][col][1] = 1
-            app.powerUps.pop(app.powerUps.index(self))
-
-class searchArea(PowerUp):
-    def __init__(self, row, col, board):
-        super.__init__(row, col)
-        board.board[row][col][1] = 2
+        if (row, col) == (self.row, self.col):
+            return True
+        return False
     
-    def revealArea(self, selectedTopRow, selectedLeftCol, board):
-        if isLegalRowCol(selectedTopRow + 2, selectedLeftCol + 2, board):
-            for row in range(3):
-                for col in range(3):
-                    if board.board[selectedTopRow + row][selectedLeftCol + col][1] == 1:
-                        pixelTopX, pixelLeftCol = rowColToPixel(selectedTopRow, selectedLeftCol, board)
-                        drawRect(pixelTopX, pixelLeftCol, pixelTopX + board.cellWidth, 
-                                 pixelLeftCol + board.cellHeight, fill = 'None', 
-                                 border = 'green', borderWidth = 3)
-                        break
-                    else:
-                        drawRect(pixelTopX, pixelLeftCol, pixelTopX + board.cellWidth, 
-                                 pixelLeftCol + board.cellHeight, fill = 'None', 
-                                 border = 'red', borderWidth = 3)
+def revealArea(selectedRow, selectedCol, board):
+    found = False
+    directions = [(1, 0), (-1, 0), (0, -1), (0, 1)]
+    for drow, dcol in directions:
+        checkRow = selectedRow + drow
+        checkCol = selectedCol + dcol
+        if (isLegalRowCol(checkRow, checkCol, board) and 
+            board.board[checkRow][checkCol][1] == 2):
+            found = True
+        if not isLegalRowCol(checkRow, checkCol, board):
+            found = False
+    if found:
+        colour = 'green'
+    else:
+        colour = 'red'
+    pixelLeftX, pixelTopY = rowColToPixel(selectedRow - 1, selectedCol - 1, board)
+    drawRect(pixelLeftX, pixelTopY, pixelLeftX + 3 * board.cellWidth, 
+             pixelTopY + 3 * board.cellHeight, fill = None, border = colour,
+             borderWidth = 3)
 
 ################################################################################
 ######################    Ship and Board Interaction    ########################
@@ -226,16 +230,23 @@ def isLegalShip(app, firstRow, firstCol, shipShape, board):
     return True
 
 def isLegalRowCol(row, col, board):
+    # strictly returns whether or not the row and col index is in the board
     return 0 <= row < len(board.board) and 0 <= col < len(board.board[row])
 
 def checkForSunkShips(app, ships, sunkShips, board):
+    initialLength = len(sunkShips)
     for ship in ships:
+        newSunkShip = False
         sunk = True
         for row in ship.gridShape:
             if [0, 1] in row:
                 sunk = False
         if sunk:
             sunkShips.add(ship)
+            if len(sunkShips) > initialLength and ships == app.blueShips:
+                newSunkShip = True
+                resetDirections(app)
+                app.initialHit = None
             updateSurroundings(ship, board)
     if len(sunkShips) == 4:
         app.gameState = 'gameover'
@@ -243,7 +254,7 @@ def checkForSunkShips(app, ships, sunkShips, board):
             app.winner = 'Player'
         else:
             app.winner = 'Computer'
-        app.message = f'GAME OVER! Winner: {app.winner}'
+    return newSunkShip
 
 def updateSurroundings(ship, board):
     firstRow = ship.gridTopRow
@@ -283,15 +294,15 @@ def computerPlaceShips(app):
                                                             app.computerBoard)
         ship.placeShip(app.computerBoard)
 
-def computerRandomGuess(app):
+def randomGuess(app, board):
     guessRow = random.randint(0, 9) # temp
     guessCol = random.randint(0, 9)
-    while app.playerBoard.board[guessRow][guessCol][0] == 1:
+    while board.board[guessRow][guessCol][0] == 1:
         guessRow = random.randint(0, 9) # temp
         guessCol = random.randint(0, 9)
-    app.playerBoard.board[guessRow][guessCol][0] = 1
+    board.board[guessRow][guessCol][0] = 1
     # set initial hit and prevHit to hit cell
-    if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+    if board == app.playerBoard and board.board[guessRow][guessCol] == [1, 1]:
         app.initialHit = (guessRow, guessCol)
         app.prevHit = (guessRow, guessCol)
 
@@ -313,67 +324,68 @@ def computerGuess(app):
     # if nothing has been hit yet
     if app.initialHit == None:
         # randomize guess until hit
-        computerRandomGuess(app)
+        randomGuess(app, app.playerBoard)
     # once there is an active ship being attacked
     else:
         # check guess in each direction until hit in direction
         guessRow, guessCol = app.prevHit
-        dRow, dcol = app.directions[0]
-        guessRow += dRow
+        drow, dcol = app.directions[0]
+        guessRow += drow
         guessCol += dcol
         # if not legal direction, go back and remove that direction and try the
         # next one
-        while not isLegalRowCol(guessRow, guessCol, app.playerBoard):
-            if app.playerBoard.board[guessRow][guessCol][0] == 1 and len(app.directions) > 0:
-                app.directions.pop(0)
-                if len(app.directions) == 0:
-                    break
-                app.prevHit = app.initialHit
-            guessRow -= dRow
+        # print(app.initialHit, guessRow, guessCol, app.playerBoard.board[guessRow][guessCol][0], app.prevHit)
+        while (not isLegalRowCol(guessRow, guessCol, app.playerBoard) and 
+               app.playerBoard.board[guessRow][guessCol][0] == 1):
+            guessRow -= drow
             guessCol -= dcol
             app.directions.pop(0)
             if len(app.directions) == 0:
-                break
-            dRow, dcol = app.directions[0]
-            guessRow += dRow
+                app.prevHit = app.initialHit
+                guessRow, guessCol = app.initialHit
+            drow, dcol = app.directions[0]
+            guessRow += drow
             guessCol += dcol
         # legal direction, make the guess
-        if len(app.directions) > 0:
+        if len(app.directions) > 0 and app.playerBoard.board[guessRow][guessCol][0] == 0:
             app.playerBoard.board[guessRow][guessCol][0] = 1
         elif len(app.directions) == 0:
-            computerRandomGuess(app)
+            randomGuess(app, app.playerBoard)
         # landed a hit
         if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
             # if the last hit was the initial hit, set direction to that
             # direction and its opposite
             if app.initialHit == app.prevHit:
                 if len(app.directions) == 3:
-                    app.directions = [app.directions[0]] # edge case?
+                    app.directions = [app.directions[0]] # edge case
                 else:
                     app.directions = app.directions[0:2]
             app.prevHit = (guessRow, guessCol)
         # did not land a hit
         else:
-            app.directions.pop(0)
+            if len(app.directions) > 0:
+                app.directions.pop(0)
             app.prevHit = app.initialHit
             if len(app.directions) == 0:
                 app.initialHit = None
                 resetDirections(app)
-    checkForSunkShips(app, app.blueShips, app.playerSunkShips, app.playerBoard)
+    if checkForSunkShips(app, app.blueShips, app.playerSunkShips, app.playerBoard):
+        app.initialHit = None
+        resetDirections(app)
     app.playerTurn = True
+    app.message = 'YOUR TURN'
 
 ################################################################################
 ##############################    Super Mode    ################################
 ################################################################################
 
-def generatePowerUp(board):
+def generatePowerUp(app, board):
     randomRow = random.randint(0, 9) # temp
     randomCol = random.randint(0, 9)
-    while board.board[randomRow][randomCol][1] != 0 or board.board[randomRow][randomCol][0] != 0:
+    while board.board[randomRow][randomCol][1] != 0 and board.board[randomRow][randomCol][0] != 0:
         randomRow = random.randint(0, 9) # temp
         randomCol = random.randint(0, 9)
-    app.powerUps.append(searchArea(randomRow, randomCol, board))
-    
+    app.activePowerUps.append(AreaPowerUp(randomRow, randomCol, board))
 
 ################################################################################
 #######################   Helper Mouse Interaction    ##########################
@@ -414,18 +426,25 @@ def pressedMenu(app, mouseX, mouseY):
     if app.menuButton.inButton(mouseX, mouseY):
         resetGame(app)
 
+def hoverButtons(app):
+    app.classicButton.hover(app)
+    app.superButton.hover(app)
+    app.confirmButton.hover(app)
+    app.rotateButton.hover(app)
+    app.menuButton.hover(app)
+
 def playerGuess(app, mouseX, mouseY):
     app.moves += 1
-    if (app.playerTurn and inRect(mouseX, mouseY, app.computerBoard.left, 
-        app.computerBoard.top, app.computerBoard.width, app.computerBoard.height)):
-        hitRow, hitCol = pixelToRowCol(mouseX, mouseY, app.computerBoard)
-        # set first value of status list to 1
-        if app.computerBoard.board[hitRow][hitCol][0] != 1:
-            app.computerBoard.board[hitRow][hitCol][0] = 1
-            app.playerTurn = False
-            # check if all cells of ship are guessed. If so, add to set of hit ships
-            checkForSunkShips(app, app.redShips, app.computerSunkShips, app.computerBoard)
-            computerGuess(app) # temp, make longer wait time
+    if (inRect(mouseX, mouseY, app.computerBoard.left, app.computerBoard.top, 
+               app.computerBoard.width, app.computerBoard.height)):
+        if app.playerTurn:
+            hitRow, hitCol = pixelToRowCol(mouseX, mouseY, app.computerBoard)
+            # set first value of status list to 1
+            if app.computerBoard.board[hitRow][hitCol][0] == 0:
+                app.computerBoard.board[hitRow][hitCol][0] = 1
+                app.playerTurn = False
+                # check if all cells of ship are guessed. If so, add to set of hit ships
+                checkForSunkShips(app, app.redShips, app.computerSunkShips, app.computerBoard)
 
 def shipDrag(app, mouseX, mouseY):
     # pick up ship is no ship is currently being held and the position is
@@ -461,11 +480,17 @@ def onMousePress(app, mouseX, mouseY):
         pressedConfirm(app, mouseX, mouseY)
         pressedRotate(app, mouseX, mouseY)
     elif app.gameState == 'play':
+        if not app.waitForSelection:
             playerGuess(app, mouseX, mouseY)
-            if app.moves >= 5:
-                generatePowerUp(app.playerBoard)
-                generatePowerUp(app.computerBoard)
+            if app.superMode and app.moves >= 10:
+                generatePowerUp(app, app.playerBoard)
+                generatePowerUp(app, app.computerBoard)
                 app.moves = 0
+                print(app.playerBoard.board)
+                print(app.computerBoard.board)
+        else:
+            app.waitForSelection = False
+
     elif app.gameState == 'gameover':
         pressedMenu(app, mouseX, mouseY)
 
@@ -480,6 +505,14 @@ def onMouseRelease(app, mouseX, mouseY):
 def onMouseMove(app, mouseX, mouseY):
     # update global app mouse pos variables for use by: aim scope tracking
     app.mousePosX, app.mousePosY = mouseX, mouseY
+
+def onKeyPress(app, key):
+    if not app.gameState == 'gameover' and key == 'a':
+        app.moves += 1
+        randomGuess(app, app.computerBoard)
+        app.playerTurn = False
+        app.message = "OPPONENT'S TURN"
+        checkForSunkShips(app, app.redShips, app.computerSunkShips, app.computerBoard)
 
 ################################################################################
 ############################    Initialization    ##############################
@@ -496,9 +529,11 @@ def resetGame(app):
     app.playerSunkShips = set()
     app.computerSunkShips = set()
     app.initialHit = None
+    app.timer = 0
     app.superMode = False
+    app.waitForSelection = False
     app.moves = 0
-    app.powerUps = []
+    app.activePowerUps = []
     initializeBoard(app)
     initializePlayerShips(app)
     initializeComputerShips(app)
@@ -620,6 +655,17 @@ def drawCrosshair(app):
 ################################################################################
 ######################   Tippity Toppest Top Level   ###########################
 ################################################################################
+
+def onStep(app):
+    if not app.playerTurn:
+        app.timer += 1
+        if app.timer >= 5:
+            computerGuess(app)
+            app.timer = 0
+    if app.gameState == 'gameover':
+        app.message = f'GAME OVER! Winner: {app.winner}'
+    hoverButtons(app)
+    
 
 def redrawAll(app):
     if app.gameState == 'startscreen':

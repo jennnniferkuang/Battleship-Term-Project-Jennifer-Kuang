@@ -23,7 +23,6 @@
 - 
 
 **Post MVP:**
-- timer for computer guess
 - super mode (randomly spawned power-ups)
 - better graphics
 - add in search area and ability to choose area to search in

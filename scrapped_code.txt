@@ -90,3 +90,87 @@ if (firstRow + row >= len(board.board) or firstCol + col >=
                     return False
                 if board.board[firstRow + row][firstCol + col][1] == 1:
                     return False
+
+for row in range(3):
+                for col in range(3):
+                    if board.board[selectedTopRow + row][selectedLeftCol + col][1] == 1:
+                        pixelTopX, pixelLeftCol = rowColToPixel(selectedTopRow, selectedLeftCol, board)
+                        found = True
+
+            if found:
+                drawRect(pixelLeftX, pixelTpixelTopY + board.cellWidth, 
+                         pixelLeftCol + board.cellHeight, fill = 'None', 
+                         border = 'green', borderWidth = 3)
+            else:
+                drawRect(pixelTopX, pixelLeftCol, pixelTopX + board.cellWidth, 
+                         pixelLeftCol + board.cellHeight, fill = 'None', 
+                         border = 'red', borderWidth = 3)
+
+    app.moves += 1
+    if len(app.directions) == 0:
+        app.initialHit = None
+        resetDirections(app)
+    guessRow = None
+    guessCol = None
+    # if nothing has been hit yet
+    if app.initialHit == None:
+        # randomize guess until hit
+        randomGuess(app, app.playerBoard)
+    # once there is an active ship being attacked
+    else:
+        # check guess in each direction until hit in direction
+        guessRow, guessCol = app.prevHit
+        drow, dcol = app.directions[0]
+        guessRow += drow
+        guessCol += dcol
+        # if not legal direction, go back and remove that direction and try the
+        # next one
+        print(app.initialHit, guessRow, guessCol, app.playerBoard.board[guessRow][guessCol][0])
+        while not isLegalRowCol(guessRow, guessCol, app.playerBoard):
+            if app.playerBoard.board[guessRow][guessCol][0] == 1 and len(app.directions) > 0:
+                app.directions.pop(0)
+                if len(app.directions) == 0:
+                    break
+                app.prevHit = app.initialHit
+            guessRow -= drow
+            guessCol -= dcol
+            app.directions.pop(0)
+            if len(app.directions) == 0:
+                break
+            drow, dcol = app.directions[0]
+            guessRow += drow
+            guessCol += dcol
+        # legal direction, make the guess
+        if len(app.directions) > 0 and app.playerBoard.board[guessRow][guessCol][0] == 0:
+            app.playerBoard.board[guessRow][guessCol][0] = 1
+        elif len(app.directions) == 0:
+            randomGuess(app, app.playerBoard)
+        # landed a hit
+        if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
+            # if the last hit was the initial hit, set direction to that
+            # direction and its opposite
+            if app.initialHit == app.prevHit:
+                if len(app.directions) == 3:
+                    app.directions = [app.directions[0]] # edge case
+                else:
+                    app.directions = app.directions[0:2]
+            app.prevHit = (guessRow, guessCol)
+        # did not land a hit
+        else:
+            if len(app.directions) > 0:
+                app.directions.pop(0)
+            app.prevHit = app.initialHit
+            if len(app.directions) == 0:
+                app.initialHit = None
+                resetDirections(app)
+    if checkForSunkShips(app, app.blueShips, app.playerSunkShips, app.playerBoard):
+        app.initialHit = None
+        resetDirections(app)
+    app.playerTurn = True
+    app.message = 'YOUR TURN'
+
+
+            else:
+                board[row][col][0] = 1
+                app.activePowerUps.pop(app.activePowerUps.index(self))
+                app.message = 'POWER UP! Select a cell to reveal surrounding area status'
