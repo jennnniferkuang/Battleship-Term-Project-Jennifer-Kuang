@@ -26,7 +26,7 @@
 - timer for computer guess
 - super mode (randomly spawned power-ups)
 - better graphics
-- 
+- add in search area and ability to choose area to search in
 
 **Dev Only:**
 # Official MVP Definition
