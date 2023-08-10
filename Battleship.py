@@ -69,6 +69,9 @@ class Board():
                  pixelY + self.cellHeight, fill = 'blue', lineWidth = 3)
         drawLine(pixelX - self.cellWidth, pixelY, pixelX + self.cellWidth, 
                  pixelY, fill = 'blue', lineWidth = 3)
+        # text showing grid position
+        drawLabel(f"Click to fire at: {chr(ord('A') + row)}{col + 1}", self.left + self.width // 2, 
+                  self.top + self.height + 50, fill = 'blue', size = 20)
 
     def reset(self):
         self.board = [[[0, 0] for i in range(self.cols)] for j in range(self.rows)]
@@ -129,12 +132,12 @@ class Ship():
 ################################################################################
 
 class Button():
-    def __init__(self, message, midX, midY, width, height):
+    def __init__(self, message, midX, midY):
         self.message = message
         self.midX = midX
         self.midY = midY
-        self.width = width
-        self.height = height
+        self.width = 200
+        self.height = 50
         self.buttonColour = 'blue' # default
         self.textColour = 'white'
     
@@ -153,42 +156,6 @@ class Button():
             self.buttonColour = 'purple'
         else:
             self.buttonColour = 'blue'
-
-################################################################################
-##############################    Power Ups    #################################
-################################################################################
-
-class AreaPowerUp():
-    def __init__(self, row, col, board):
-        self.row = row
-        self.col = col
-        board.board[row][col][1] = 2
-    
-    def clickedPowerUp(self, app, mouseX, mouseY, board):
-        row, col = pixelToRowCol(mouseX, mouseY)
-        if (row, col) == (self.row, self.col):
-            return True
-        return False
-    
-def revealArea(selectedRow, selectedCol, board):
-    found = False
-    directions = [(1, 0), (-1, 0), (0, -1), (0, 1)]
-    for drow, dcol in directions:
-        checkRow = selectedRow + drow
-        checkCol = selectedCol + dcol
-        if (isLegalRowCol(checkRow, checkCol, board) and 
-            board.board[checkRow][checkCol][1] == 2):
-            found = True
-        if not isLegalRowCol(checkRow, checkCol, board):
-            found = False
-    if found:
-        colour = 'green'
-    else:
-        colour = 'red'
-    pixelLeftX, pixelTopY = rowColToPixel(selectedRow - 1, selectedCol - 1, board)
-    drawRect(pixelLeftX, pixelTopY, pixelLeftX + 3 * board.cellWidth, 
-             pixelTopY + 3 * board.cellHeight, fill = None, border = colour,
-             borderWidth = 3)
 
 ################################################################################
 ######################    Ship and Board Interaction    ########################
@@ -243,20 +210,26 @@ def checkForSunkShips(app, ships, sunkShips, board):
                 sunk = False
         if sunk:
             sunkShips.add(ship)
-            if len(sunkShips) > initialLength and ships == app.blueShips:
+            # if new length of sunkShip set is greater than its starting length,
+            # a new ship has been sunk and will return true at the end. Also
+            # reset initial hit and directions
+            if len(sunkShips) > initialLength and ships == app.playerShips:
                 newSunkShip = True
                 resetDirections(app)
                 app.initialHit = None
             updateSurroundings(ship, board)
+    # if all ships sunk, game over
     if len(sunkShips) == 4:
         app.gameState = 'gameover'
-        if ships == app.redShips:
+        if ships == app.computerShips:
             app.winner = 'Player'
         else:
             app.winner = 'Computer'
     return newSunkShip
 
 def updateSurroundings(ship, board):
+    # because ships cannot be side to side, once a ship is sunk, automatically 
+    # set all surrounding cells to guessed
     firstRow = ship.gridTopRow
     firstCol = ship.gridLeftCol
     directions = [(1, 0), (-1, 0), (0, -1), (0, 1)]
@@ -279,7 +252,7 @@ def computerPlaceShips(app):
     # for each ship, randomize whether to rotate or not. Randomize a row, col
     # and check if the whole ship a) fits on the board and b) is not overlapping
     # with another ship. If legal, place on board and set the pixel location.
-    for ship in app.redShips:
+    for ship in app.computerShips:
         rotate = random.randint(0, 1)
         if rotate == 1:
             ship.rotateShip()
@@ -295,11 +268,12 @@ def computerPlaceShips(app):
         ship.placeShip(app.computerBoard)
 
 def randomGuess(app, board):
-    guessRow = random.randint(0, 9) # temp
-    guessCol = random.randint(0, 9)
+    # randomize guess until lands on empty cell
+    guessRow = random.randint(0, board.rows - 1)
+    guessCol = random.randint(0, board.cols - 1)
     while board.board[guessRow][guessCol][0] == 1:
-        guessRow = random.randint(0, 9) # temp
-        guessCol = random.randint(0, 9)
+        guessRow = random.randint(0, board.rows - 1)
+        guessCol = random.randint(0, board.cols - 1)
     board.board[guessRow][guessCol][0] = 1
     # set initial hit and prevHit to hit cell
     if board == app.playerBoard and board.board[guessRow][guessCol] == [1, 1]:
@@ -315,7 +289,6 @@ def computerGuess(app):
     # 4. once hit an empty cell, pop the first direction being used and go back
     #    to initial guess. Then, use the opposite direction until out of guesses
     # 5. Once directions is empty, set initial guess back to None and restart
-    app.moves += 1
     if len(app.directions) == 0:
         app.initialHit = None
         resetDirections(app)
@@ -334,7 +307,6 @@ def computerGuess(app):
         guessCol += dcol
         # if not legal direction, go back and remove that direction and try the
         # next one
-        # print(app.initialHit, guessRow, guessCol, app.playerBoard.board[guessRow][guessCol][0], app.prevHit)
         while (not isLegalRowCol(guessRow, guessCol, app.playerBoard) and 
                app.playerBoard.board[guessRow][guessCol][0] == 1):
             guessRow -= drow
@@ -351,6 +323,7 @@ def computerGuess(app):
             app.playerBoard.board[guessRow][guessCol][0] = 1
         elif len(app.directions) == 0:
             randomGuess(app, app.playerBoard)
+            resetDirections(app)
         # landed a hit
         if app.playerBoard.board[guessRow][guessCol] == [1, 1]:
             # if the last hit was the initial hit, set direction to that
@@ -369,54 +342,41 @@ def computerGuess(app):
             if len(app.directions) == 0:
                 app.initialHit = None
                 resetDirections(app)
-    if checkForSunkShips(app, app.blueShips, app.playerSunkShips, app.playerBoard):
+    # if a ship has been sunk, reset the directions and set initial hit to none
+    if checkForSunkShips(app, app.playerShips, app.playerSunkShips, app.playerBoard):
         app.initialHit = None
         resetDirections(app)
     app.playerTurn = True
     app.message = 'YOUR TURN'
 
 ################################################################################
-##############################    Super Mode    ################################
-################################################################################
-
-def generatePowerUp(app, board):
-    randomRow = random.randint(0, 9) # temp
-    randomCol = random.randint(0, 9)
-    while board.board[randomRow][randomCol][1] != 0 and board.board[randomRow][randomCol][0] != 0:
-        randomRow = random.randint(0, 9) # temp
-        randomCol = random.randint(0, 9)
-    app.activePowerUps.append(AreaPowerUp(randomRow, randomCol, board))
-
-################################################################################
 #######################   Helper Mouse Interaction    ##########################
 ################################################################################
 
 def pressedStart(app, mouseX, mouseY):
-    if app.classicButton.inButton(mouseX, mouseY):
+    if app.startButton.inButton(mouseX, mouseY):
         app.gameState = 'setup'
-    if app.superButton.inButton(mouseX, mouseY):
-        app.gameState = 'setup'
-        app.superMode = True
 
-# if clicked 'confirm placement' button, place all ships and start game
 def pressedConfirm(app, mouseX, mouseY):
+    # if clicked 'confirm placement' button, place all ships and start game
     if app.confirmButton.inButton(mouseX, mouseY):
         legalPlacement = True
-        for ship in app.blueShips:
+        for ship in app.playerShips:
             ship.gridTopRow, ship.gridLeftCol = pixelToRowCol(ship.pixelLeftX, ship.pixelTopY,
                                                               app.playerBoard, True)
             if isLegalShip(app, ship.gridTopRow, ship.gridLeftCol, ship.gridShape, app.playerBoard):
                 ship.placeShip(app.playerBoard)
+            # if there is an illegal ship, do not place ships
             else:
                 app.message = 'ILLEGAL PLACEMENT'
                 legalPlacement = False
         if legalPlacement:
             computerPlaceShips(app)
             app.gameState = 'play'
+            # start on player's turn
             app.message = 'YOUR TURN'
         else:
             app.playerBoard.reset()
-    # player guesses cell
 
 def pressedRotate(app, mouseX, mouseY):
     if app.rotateButton.inButton(mouseX, mouseY) and app.prevHeldShip != None:
@@ -427,14 +387,14 @@ def pressedMenu(app, mouseX, mouseY):
         resetGame(app)
 
 def hoverButtons(app):
-    app.classicButton.hover(app)
-    app.superButton.hover(app)
+    # buttons turn purple when the mouse hovers on top
+    app.startButton.hover(app)
     app.confirmButton.hover(app)
     app.rotateButton.hover(app)
     app.menuButton.hover(app)
 
 def playerGuess(app, mouseX, mouseY):
-    app.moves += 1
+    # if the guess is within board bounds
     if (inRect(mouseX, mouseY, app.computerBoard.left, app.computerBoard.top, 
                app.computerBoard.width, app.computerBoard.height)):
         if app.playerTurn:
@@ -443,13 +403,14 @@ def playerGuess(app, mouseX, mouseY):
             if app.computerBoard.board[hitRow][hitCol][0] == 0:
                 app.computerBoard.board[hitRow][hitCol][0] = 1
                 app.playerTurn = False
+                app.message = 'OPPONENT TURN'
                 # check if all cells of ship are guessed. If so, add to set of hit ships
-                checkForSunkShips(app, app.redShips, app.computerSunkShips, app.computerBoard)
+                checkForSunkShips(app, app.computerShips, app.computerSunkShips, app.computerBoard)
 
 def shipDrag(app, mouseX, mouseY):
     # pick up ship is no ship is currently being held and the position is
     # within the new ship
-    for ship in app.blueShips:
+    for ship in app.playerShips:
         if (app.heldShip == None or ship == app.heldShip) and inRect(mouseX, 
             mouseY, ship.pixelLeftX, ship.pixelTopY, ship.pixelWidth, ship.pixelHeight):
             app.heldShip = ship
@@ -458,9 +419,9 @@ def shipDrag(app, mouseX, mouseY):
         app.heldShip.pixelLeftX = mouseX - app.heldShip.pixelWidth // 2
         app.heldShip.pixelTopY = mouseY - app.heldShip.pixelHeight // 2
 
-# checks if point is within a rectangle given leftX, topY, width, and height of 
-# the rectangle
 def inRect(pX, pY, x, y, width, height):
+    # checks if point is within a rectangle given leftX, topY, width, and height of 
+    # the rectangle
     if x <= pX <= x + width and y <= pY <= y + height:
         return True
     return False
@@ -480,17 +441,7 @@ def onMousePress(app, mouseX, mouseY):
         pressedConfirm(app, mouseX, mouseY)
         pressedRotate(app, mouseX, mouseY)
     elif app.gameState == 'play':
-        if not app.waitForSelection:
-            playerGuess(app, mouseX, mouseY)
-            if app.superMode and app.moves >= 10:
-                generatePowerUp(app, app.playerBoard)
-                generatePowerUp(app, app.computerBoard)
-                app.moves = 0
-                print(app.playerBoard.board)
-                print(app.computerBoard.board)
-        else:
-            app.waitForSelection = False
-
+        playerGuess(app, mouseX, mouseY)
     elif app.gameState == 'gameover':
         pressedMenu(app, mouseX, mouseY)
 
@@ -507,33 +458,37 @@ def onMouseMove(app, mouseX, mouseY):
     app.mousePosX, app.mousePosY = mouseX, mouseY
 
 def onKeyPress(app, key):
+    # developer functions. Press 'a' to guess cells at random. Also will 
+    # speed up the computer player's thinking time. Makes it faster to test 
+    # other things :)
     if not app.gameState == 'gameover' and key == 'a':
-        app.moves += 1
         randomGuess(app, app.computerBoard)
         app.playerTurn = False
+        app.timer += 30
         app.message = "OPPONENT'S TURN"
-        checkForSunkShips(app, app.redShips, app.computerSunkShips, app.computerBoard)
+        checkForSunkShips(app, app.computerShips, app.computerSunkShips, app.computerBoard)
 
 ################################################################################
 ############################    Initialization    ##############################
 ################################################################################
 
 def resetGame(app):
+    # general game info
     app.gameState = 'startscreen'
-    app.heldShip = None
-    app.prevHeldShip = None
-    app.playerTurn = True
     app.mousePosX = 0
     app.mousePosY = 0
     app.message = 'BATTLESHIP'
+    # ship drag info
+    app.heldShip = None
+    app.prevHeldShip = None
+    # play info
+    app.playerTurn = True
     app.playerSunkShips = set()
     app.computerSunkShips = set()
+    # computer player info
     app.initialHit = None
     app.timer = 0
-    app.superMode = False
-    app.waitForSelection = False
-    app.moves = 0
-    app.activePowerUps = []
+    # initialize objects and other variables
     initializeBoard(app)
     initializePlayerShips(app)
     initializeComputerShips(app)
@@ -557,27 +512,27 @@ def initializeBoard(app):
     app.computerBoard.top = app.height // 2 - app.computerBoard.height // 2
 
 def initializePlayerShips(app):
-    app.blueShips = []
-    # the following images are illustrated by my friend @gawain_draws on
-    # Instagram for my commission. All drawings are paid for and I have explicit 
-    # permission from him to use these illustrations for this project.
-    app.blueShips.append(Ship('assets/A_destroyer_2.png', 2, app.playerBoard)) # temp
-    app.blueShips.append(Ship('assets/A_cruiser_3.png', 3, app.playerBoard))
-    app.blueShips.append(Ship('assets/A_carrier_4.png', 4, app.playerBoard))
-    app.blueShips.append(Ship('assets/A_battleship_5.png', 5, app.playerBoard))
+    app.playerShips = []
+    # the following images are commissioned by my friend @gawain_draws on
+    # Instagram. All drawings are paid for and I have explicit permission from 
+    # him to use these illustrations for this project.
+    app.playerShips.append(Ship('assets/A_destroyer_2.png', 2, app.playerBoard)) # temp
+    app.playerShips.append(Ship('assets/A_cruiser_3.png', 3, app.playerBoard))
+    app.playerShips.append(Ship('assets/A_carrier_4.png', 4, app.playerBoard))
+    app.playerShips.append(Ship('assets/A_battleship_5.png', 5, app.playerBoard))
     # initialize stating position (from left to right)
-    for ship in range(len(app.blueShips)):
-        app.blueShips[ship].pixelLeftX += (ship * app.playerBoard.cellWidth)
+    for ship in range(len(app.playerShips)):
+        app.playerShips[ship].pixelLeftX += (ship * app.playerBoard.cellWidth)
 
 def initializeComputerShips(app):
-    app.redShips = []
+    app.computerShips = []
     # the following images are illustrated by my friend @gawain_draws on
     # Instagram for my commission. All drawings are paid for and I have explicit 
     # permission from him to use these illustrations for this project.
-    app.redShips.append(Ship('assets/B_destroyer_2.png', 2, app.computerBoard)) # temp
-    app.redShips.append(Ship('assets/B_cruiser_3.png', 3, app.computerBoard))
-    app.redShips.append(Ship('assets/B_carrier_4.png', 4, app.computerBoard))
-    app.redShips.append(Ship('assets/B_battleship_5.png', 5, app.computerBoard))
+    app.computerShips.append(Ship('assets/B_destroyer_2.png', 2, app.computerBoard)) # temp
+    app.computerShips.append(Ship('assets/B_cruiser_3.png', 3, app.computerBoard))
+    app.computerShips.append(Ship('assets/B_carrier_4.png', 4, app.computerBoard))
+    app.computerShips.append(Ship('assets/B_battleship_5.png', 5, app.computerBoard))
 
 def initializeHitShipImage(app):
     # image is the collision symbol emoji from Apple. I typed it in on my Ipad's
@@ -590,15 +545,13 @@ def initializeButtons(app):
     # 'confirm placement' button
     confirmButtonX = app.playerBoard.left + (app.playerBoard.width // 2)
     confirmButtonY = app.playerBoard.top + app.playerBoard.height + 45
-    app.confirmButton = Button('confirm placement', confirmButtonX, confirmButtonY, 200, 50)
+    app.confirmButton = Button('confirm placement', confirmButtonX, confirmButtonY)
     # 'rotate ship' button
-    app.rotateButton = Button('rotate ship', confirmButtonX, confirmButtonY + 65, 200, 50)
+    app.rotateButton = Button('rotate ship', confirmButtonX, confirmButtonY + 65)
     # 'back to menu' button
-    app.menuButton = Button('back to menu', app.width // 2, app.height - 100, 200, 50)
+    app.menuButton = Button('back to menu', app.width // 2, app.height - 100)
     # 'classic mode' button
-    app.classicButton = Button('classic mode', app.width // 4, (3 * app.height) // 4, 200, 50)
-    # 'super mode' button
-    app.superButton = Button('super mode', 3 * (app.width) // 4, (3 * app.height) // 4, 200, 50)
+    app.startButton = Button('start', app.width // 2, app.height - 100)
 
 ################################################################################
 ##################################    Draw    ##################################
@@ -618,15 +571,15 @@ def drawStartScreen(app):
               app.width // 2, app.height // 2 + 50, size = 16, fill = 'blue')
     drawLabel("Your objective is to guess all of the oponent's ships before they guess yours.",
               app.width // 2, app.height // 2 + 75, size = 16, fill = 'blue')
-    app.classicButton.drawButton()
-    app.superButton.drawButton()
+    app.startButton.drawButton()
 
-# using the list of player ships, draw them on the board
 def drawShips(ships): 
+    # using the list of player ships, draw them on the board
     for ship in ships:
         ship.drawShip() # temp
 
 def drawHitCells(app, board):
+    # draws cells that have been guessed and contain a ship
     for row in range(board.rows):
         for col in range(board.cols):
             if board.board[row][col] == [1, 1]:
@@ -634,11 +587,12 @@ def drawHitCells(app, board):
                 drawImage(app.hitShip, pixelX, pixelY)
 
 def drawSunkComputerShips(app):
+    # once a computer's whole ship has been hit, draw it so the player can see it
     for ship in app.computerSunkShips:
         ship.drawShip()
 
-# draw message/status box in top middle of board
 def drawMessageBox(app):
+    # draw message/status box in top middle of board
     drawRect(app.width // 4, 25, app.width // 2, 75, fill = None, border = 'blue') # temp 25 and 75
     messageBoxMiddleY = 25 + (75 // 2)
     drawLabel(app.message, app.width // 2, messageBoxMiddleY, size = 25, fill = 'blue')
@@ -659,21 +613,21 @@ def drawCrosshair(app):
 def onStep(app):
     if not app.playerTurn:
         app.timer += 1
-        if app.timer >= 5:
+        if app.timer >= 30:
             computerGuess(app)
             app.timer = 0
     if app.gameState == 'gameover':
         app.message = f'GAME OVER! Winner: {app.winner}'
-    hoverButtons(app)
-    
+    hoverButtons(app)    
 
 def redrawAll(app):
     if app.gameState == 'startscreen':
         drawStartScreen(app)
+    # anything other than start screen
     else:
         app.playerBoard.drawBoard()
         app.computerBoard.drawBoard()
-        drawShips(app.blueShips)
+        drawShips(app.playerShips)
         drawSunkComputerShips(app)
         drawHitCells(app, app.playerBoard)
         drawHitCells(app, app.computerBoard)

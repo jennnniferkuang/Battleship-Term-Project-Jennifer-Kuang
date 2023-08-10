@@ -1,53 +1,19 @@
 # Battleship Term Project Jennifer Kuang
- 
-***What's in this repo so far:***
-- Asset folder containing:
-    - 2 planes, 1 for each opposing side
-    - 8 ships, 4 for each opposing side
-    - hit ship image (Apple collision emoji)
-- Python file containing all code so far (see 'code' section)
-- This readme file
-- A gitattributes file that has absolutely no use to me
+**Description**
+Battleship is a 2 player game. For this app, the user is one player and the opponent is the computer. Each player starts out by placing 4 ships on their board, vertically or horizontally. When the game starts, the players take turns guessing a cell on the other's grid. If the guess lands on the opponent's ship, the ship takes a hit. Once all the cells containing a ship are hit, the ship is 'sunk'. The goal of the game is to guess all the cells containing the opponent's ships before the other player guesses yours.
 
-**Assets:**
-- All battleship/plane assets are illustrated by my friend. His Instagram is 
-    @gawain_draws. All assets are paid for, with all rights to personal use 
-    given to me as the commissioner. As of now these are the only assets I have.
+**How to Set Up**
+All you need is the folder containing the Python code file and the assets folder. To run, open the folder containing both of these elements and run the Python code in VS Code. As long as the assets folder is open alongside the code, it should run perfectly fine.
 
-**Code:**
-- I lied there's too much code just read the actual code
+**Libraries**
+I did not use any libraries appart from the CMU Graphics library and Pillow for images. All other libraries I used are built-in Python libraries.
 
-**Reach MVP:**
-- computer search in direction
-- make ships stay in board bounds
-- 
+**Images**
+All battleship assets are illustrated by my friend. His Instagram is @gawain_draws. All assets are paid for, with all rights to personal use given to me as the commissioner.
+The hit image is the collision emoji from Apple.
 
-**Post MVP:**
-- super mode (randomly spawned power-ups)
-- better graphics
-- add in search area and ability to choose area to search in
+**References**
+The only references I used were for images. These were taken from the Piazza post (https://piazza.com/class/li3k33dc9yl37f/post/424) or from the official Pillow module documentation (https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.rotate )
 
-**Dev Only:**
-# Official MVP Definition
-Code Organization:
-- An outside user can understand the code and what is being written
-- Student displays knowledge of style learned throughout the semester
-
-User Interface (UI): 
-- Decent game interface
-- Representations for bombs and ships
-
-User Experience (UX):
-- Board contains all properties
-- Ships can legally placed around the board
-- All game rules implemented including:
-    - Placing ships
-    - Bombing ships 
-    - When the ship die
-
-Algorithmic Complexity: 
-- OOP 
-    - Keeps track of all cell status & ships
-- Game AI Opponent
-    - Before game: Being able to put in different ships every round
-    - During game: Being able to select cell to bomb with some sort of thinking 
+**Shortcuts**
+Press 'a' to automatically guess a random cell on the computer's grid. Will also speed up the computer player's guessing speed. This means you wait for less time before your turn comes around again.
